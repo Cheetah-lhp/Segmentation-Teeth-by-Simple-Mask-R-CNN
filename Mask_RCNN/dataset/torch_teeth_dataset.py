@@ -30,11 +30,9 @@ class TorchTeethDataset(Dataset):
 
         for obj in info["objects"]:
             class_id = obj["class_id"]
-            print(obj["polygons"][0])
             
             smoothed_mask_np = polygons2mask(img_shape=(new_h, new_w), polygons=obj["polygons"], scale=scale)
             bbox = obj["bbox"]
-            print(bbox)
             scaled_bbox = [
                 bbox[0] * scale,
                 bbox[1] * scale,
