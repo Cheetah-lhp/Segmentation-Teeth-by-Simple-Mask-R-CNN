@@ -26,7 +26,7 @@ class Matcher:
 
         if self.allow_low_quality_matches:
             highest_quality = iou.max(dim=1)[0] # Lấy giá trị iou lớn nhất cho mỗi ground truth box
-            gt_pred_pairs = torch.where(iou == highest_quality[:, None])[1] # Tìm predicted box có iou cao nhất với mỗi gt box
+            gt_pred_pairs = torch.where(iou == highest_quality[:, None])[1] # Tìm predicted box tương ứng với mỗi gt box
             label[gt_pred_pairs] = 1
 
         return label, matched_idx
@@ -34,14 +34,14 @@ class Matcher:
 class BalancedPositiveNegativeSampler:
     def __init__(self, num_samples, positive_fraction):
         self.num_samples = num_samples
-        self.positive_fraction = positive_fraction
+        self.positive_fraction = positive_fraction # Tỉ lệ positive samples trong tổng số samples
 
     def __call__(self, labels):
         positive = torch.where(labels == 1)[0]
         negative = torch.where(labels == 0)[0]
 
         num_pos = int(self.num_samples * self.positive_fraction)
-        num_pos = min(positive.numel(), num_pos)
+        num_pos = min(positive.numel(), num_pos) # Giới hạn số lượng positive samples không vượt quá số lượng thực tế
         num_neg = self.num_samples - num_pos
         num_neg = min(negative.numel(), num_neg)
 
@@ -58,9 +58,8 @@ def rol_align(feature, rois, spatial_scale, pooled_height, pooled_width, samplin
 
 class AnchorGenerator:
     def __init__(self, sizes, ratios):
-        self.sizes = sizes
-        self.ratios = ratios
-
+        self.sizes = sizes # Kích thước anchor (32, 64, 128, 256, 512)
+        self.ratios = ratios   # Tỉ lệ khung hình anchor (0.5, 1.0, 2.0)
         self.cell_anchor = None
         self._cache = {}
 
