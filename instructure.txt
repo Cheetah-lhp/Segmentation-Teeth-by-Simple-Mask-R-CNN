@@ -1,0 +1,30 @@
+Check phiên bản git:
+    git --version
+Khởi tạo Git (nếu chưa có)
+Mở terminal trong VS Code (Ctrl + ~) và gõ:
+    git init
+Kết nối với GitHub repo
+Mở terminal
+    git remote add origin https://github.com/username/...
+Thêm file để commit
+thêm tất cả file sửa đổi
+    git add .
+    
+Commit thay đổi: 
+    git commit -m "Message"
+Push lên github:
+    git branch -M main
+    git push -u origin main
+(
+    Mỗi lần chỉnh sửa, chỉ cần:
+        git add .
+        git commit -m "update"
+        git push
+)
+Kiểm tra trạng thái repo:
+    git status
+Đưa dữ liệu về máy: 
+    git pull
+Muốn bỏ merge khi pull:
+    git merge --abort
+
