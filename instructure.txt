@@ -7,9 +7,11 @@ Kết nối với GitHub repo
 Mở terminal
     git remote add origin https://github.com/username/...
 Thêm file để commit
-thêm tất cả file sửa đổi
+thêm tất cả file sửa đổi:
     git add .
-    
+thêm file chỉ định (1 vài file) sửa đổi:
+    Mở tab Source Control (Ctrl+Shift+G) -> nhấn nút "+" ở file muốn commit -> 
+        -> thêm "message" nếu cần thiết -> push lên githut qua các lệnh như: git branch -M main/git push -u origin main. Hoặc trong tab Source Control, nhấn nút “Sync Changes” hoặc “Push” ⬆️
 Commit thay đổi: 
     git commit -m "Message"
 Push lên github:
