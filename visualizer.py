@@ -3,6 +3,8 @@ import numpy as np
 from matplotlib.patches import Rectangle
 from Mask_RCNN.dataset import TeethDataset, TorchTeethDataset
 import torch, matplotlib, os
+from Mask_RCNN.model.mask_rcnn import maskrcnn_resnet50
+from torchvision.models.detection import maskrcnn_resnet50_fpn
 
 class TeethVisualizer:
     """
@@ -24,12 +26,16 @@ class TeethVisualizer:
         """Fetches and processes data from dataset and model for a given index."""
         
         image_tensor, target = self.dataset[idx]
-        images = [image_tensor]
+        # Determine the model's current device (e.g., 'cuda:0' or 'cpu')
+        # This is a robust way to find the device.
+        model_device = next(self.model.parameters()).device
         
-        if (self.model):
-            with torch.no_grad():
-                outputs = self.model(images)
-            pred = outputs[0] 
+        # --- FIX: Move image tensor to the model's device ---
+        image_tensor = image_tensor.to(model_device)
+        _, H, W = image_tensor.shape
+        
+        # The model expects a list of tensors (batch of size 1)
+        images = [image_tensor]
 
         # Image (convert back to H, W, C and 0-255 range for plotting)
         image_np = (image_tensor.permute(1, 2, 0).cpu().numpy() * 255).astype(np.uint8)
@@ -41,11 +47,25 @@ class TeethVisualizer:
         
         # Prediction
         if (self.model):
-            pred_masks_raw = pred['masks'].cpu().numpy() 
-            pred_masks = (pred_masks_raw.squeeze(1) > 0.5).astype(np.uint8) 
-            pred_boxes = pred['boxes'].cpu().numpy()
-            pred_labels = pred['labels'].cpu().numpy()
-            pred_scores = pred['scores'].cpu().numpy()
+            with torch.no_grad():
+                outputs = self.model(images)
+            pred = outputs[0]
+            
+            num_preds = pred['boxes'].shape[0]
+            if num_preds == 0: # Not detect any object
+                print("No objects detected by the model.")
+                # Initialize all prediction arrays to empty but correct shapes (on CPU)
+                pred_masks = np.zeros((0, H, W), dtype=np.uint8)
+                pred_boxes = np.zeros((0, 4), dtype=np.float32)
+                pred_labels = np.zeros((0,), dtype=np.int64)
+                pred_scores = np.zeros((0,), dtype=np.float32)
+
+            else:
+                pred_masks_raw = pred['masks'].cpu().numpy()
+                pred_masks = (pred_masks_raw.squeeze(1) > 0.5).astype(np.uint8)
+                pred_boxes = pred['boxes'].cpu().numpy()
+                pred_labels = pred['labels'].cpu().numpy()
+                pred_scores = pred['scores'].cpu().numpy()
             
             return image_np, {
                 "gt_masks": gt_masks, "gt_boxes": gt_boxes, "gt_labels": gt_labels,
@@ -60,7 +80,7 @@ class TeethVisualizer:
         idx: int, 
         source: str = 'gt', 
         tooth_index: int = None, 
-        score_threshold: float = 0.5
+        score_threshold: float = 0
     ):
         """
         Displays the image with masks and bounding boxes for a specific tooth 
@@ -140,7 +160,7 @@ class TeethVisualizer:
                 ax.imshow(colored_mask, alpha=mask * alpha)
                 
                 # --- B. Bounding Box ---
-                y_min, x_min, y_max, x_max = box
+                x_min, y_min, x_max, y_max = box
                 width = x_max - x_min
                 height = y_max - y_min
                 
@@ -151,7 +171,7 @@ class TeethVisualizer:
                 ax.add_patch(rect)
                 
                 # --- C. Label Text ---
-                label_name = self.class_map[i]['name']
+                label_name = f"teeth_{label}"
                 score_text = f" ({scores[i]:.2f})" if scores is not None else ""
                 
                 ax.text(
@@ -170,10 +190,13 @@ if __name__ == "__main__":
     md.prepare()
     dataset = TorchTeethDataset(md, max_size=512)
     
-    # WEIGHTS_PATH = "weights_training_epoch/maskrcnn_epoch54.pth" 
-    # model = maskrcnn_resnet50_fpn(num_classes=md.num_classes)
-    # model.load_state_dict(torch.load(WEIGHTS_PATH, map_location=device, weights_only=True))
-    # model.to(device)
+    num_classes = md.num_classes + 1
+    # WEIGHTS_PATH = os.path.join(ROOT_DIR, "data/weights_ETE_train/maskrcnn_epoch40.pth")
+    # model = maskrcnn_resnet50(pretrained=False, num_classes=num_classes)
+    WEIGHTS_PATH = os.path.join(ROOT_DIR, "data/weights_train/maskrcnn_epoch40.pth")
+    model = maskrcnn_resnet50_fpn(pretrained=False, num_classes=num_classes)
+    model.load_state_dict(torch.load(WEIGHTS_PATH, map_location=device, weights_only=True))
+    model.to(device)
     
-    visualizer = TeethVisualizer(dataset=dataset, model=None)
-    visualizer.visualize_masks_and_boxes(idx=0, source='gt', tooth_index=3)
+    visualizer = TeethVisualizer(dataset=dataset, model=model)
+    visualizer.visualize_masks_and_boxes(idx=0, source='pred', tooth_index=None)
