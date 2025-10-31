@@ -29,4 +29,13 @@ Kiểm tra trạng thái repo:
     git pull
 Muốn bỏ merge khi pull:
     git merge --abort
+Kiểm tra repo github đang được liên Kết
+    git remote -v
+Ngắt liên kết file với git
+    git remote remove origin
+Kết nổi lại repo
+    git remote add origin https://github.com/Cheetah-lhp/Segmentation-Teeth-by-Simple-Mask-R-CNN
+Push lên branch phụ
+    git push -u origin progress (thay progress bằng tên branch)
 
+    

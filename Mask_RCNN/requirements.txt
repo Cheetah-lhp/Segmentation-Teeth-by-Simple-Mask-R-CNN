@@ -1,3 +1,0 @@
-Windows or Linux, with Python ≥ 3.6
-PyTorch ≥ 1.4.0
-matplotlib, OpenCV - visualizing images and results
