@@ -1,79 +1,13 @@
 import torch
 import numpy as np
 import os, sys
-from torchvision.ops import masks_to_boxes
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import DataLoader
 from torchvision import transforms
 from Mask_RCNN.model.mask_rcnn import maskrcnn_resnet50
-from Mask_RCNN.dataset import teeth_dataset
+from Mask_RCNN.dataset import TeethDataset, TorchTeethDataset
 import torch.optim as optim
 from PIL import Image, ImageDraw
-
-class TorchTeethDataset(Dataset):
-    def __init__(self, mrcnn_dataset, max_size=512):
-        self.mds = mrcnn_dataset       # matterport dataset
-        self.max_size = max_size
-    def __len__(self):
-        return len(self.mds.image_ids)
-
-    def __getitem__(self, idx):
-        info = self.mds.image_info[idx]
-
-        # Load image
-        image = Image.open(info["path"]).convert("RGB")
-        w, h = image.size
-        scale = self.max_size/max(w, h)
-        new_w, new_h = int(w*scale), int(h*scale)
-        image = image.resize((new_w, new_h))
-        image = torch.tensor(np.array(image)).permute(2, 0, 1) / 255.0
-
-        masks = []
-        boxes = []
-        labels = []
-
-        for obj in info["objects"]:
-            class_id = obj["class_id"]
-
-            for poly in obj["polygons"]:
-                if len(poly) < 3:
-                    continue
-                # tao mask tu polygon
-                scaled_poly = [(p[0] * scale, p[1] * scale) for p in poly]
-
-                mask = Image.new("L", (new_w, new_h), 0)
-                ImageDraw.Draw(mask).polygon(scaled_poly, outline=1, fill=1)
-                mask = torch.tensor(np.array(mask), dtype=torch.uint8)
-
-                masks.append(mask)
-                labels.append(class_id)
-
-        if len(masks) == 0:
-            masks = torch.zeros((0, new_h, new_w), dtype=torch.uint8)
-            boxes = torch.zeros((0, 4), dtype=torch.float32)
-            labels = torch.zeros((0,), dtype=torch.int64)
-        else:
-            masks = torch.stack(masks)
-            boxes = masks_to_boxes(masks)
-            labels = torch.tensor(labels, dtype=torch.int64)
-        
-            valid = (boxes[:, 2] > boxes[:, 0]) & (boxes[:, 3] > boxes[:, 1])
-            boxes = boxes[valid]
-            masks = masks[valid]
-            labels = labels[valid]
-
-            if boxes.size(0) == 0:
-                boxes = torch.zeros((0, 4), dtype=torch.float32)
-                masks = torch.zeros((0, new_h, new_w), dtype=torch.uint8)
-                labels = torch.zeros((0,), dtype=torch.int64)
-        
-        target = {
-            "boxes": boxes.float(),
-            "labels": labels,
-            "masks": masks.float()
-            # "image_id": torch.tensor([idx])
-        }
-
-        return image, target
+from utils.visualize import create_binary_smoothed_mask
 
 def collate_fn(batch):
     return tuple(zip(*batch))
@@ -133,7 +67,7 @@ def main():
     DIR = os.path.join(ROOT_DIR, "Radiographs")
     ANNOTATION_DIR = os.path.join(ROOT_DIR, "Segmentation/teeth_polygon_chunk_4.json")
 
-    md = teeth_dataset.TeethDataset()
+    md = TeethDataset()
     md.load_teeth(DIR, "train", ANNOTATION_DIR)
     md.prepare()
 
