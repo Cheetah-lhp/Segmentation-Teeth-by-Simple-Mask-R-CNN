@@ -4,7 +4,7 @@ from torch import nn
 
 from .pooler import RoIAlign
 from .utils import Matcher, BalancedPositiveNegativeSampler, rol_align, AnchorGenerator
-from .box_ops import BoxCoder, box_iou, procecss_box, nms
+from .box_ops import BoxCoder, box_iou, process_box, nms
 
 def fastrcnn_loss(class_logits, box_regression, labels, regression_targets):
     classification_loss = F.cross_entropy(class_logits, labels)
@@ -16,6 +16,8 @@ def fastrcnn_loss(class_logits, box_regression, labels, regression_targets):
 
     box_reg_loss = F.smooth_l1_loss(box_regression[box_idx, label], regression_targets, reduction='sum')
     return classification_loss, box_reg_loss
+"""output:  classification_loss: float (scalar)
+            box_reg_loss: float (scalar)"""
 
 def maskrcnn_loss(mask_logit, proposal, matched_idx, label, gt_mask):
     matched_idx = matched_idx[:, None].to(proposal)
@@ -28,6 +30,7 @@ def maskrcnn_loss(mask_logit, proposal, matched_idx, label, gt_mask):
     idx = torch.arange(label.shape[0], device=label.device)
     mask_loss = F.binary_cross_entropy_with_logits(mask_logit[idx, label], mask_target)
     return mask_loss
+"""output: mask_loss: float (scalar)"""
 
 class RoIHeads(nn.Module):
     def __init__(self, box_roi_pool, box_predictor,
@@ -46,14 +49,25 @@ class RoIHeads(nn.Module):
         self.nms_thresh = nms_thresh
         self.num_detections = num_detections
         self.min_size = 1
-
+    """input class RoIHeads:
+            + box_roi_pool: duoc khoi tao san trong nn.Module
+            + box_predictor: duoc khoi tao san trong nn.Module
+            + fg_iou_thresh: float
+            + bg_iou_thresh: float
+            + num_samples: int so anchor de tinh loss
+            + positive_fraction: float
+            + reg_weights: tuple[float](wx, wy, ww, wh) trong so offset bbox
+            + score_thresh: float
+            + nms_thresh: float
+            + num_detection: int"""
+    
     def has_mask(self):
         if self.mask_roi_pool is not None:
             return False
         if self.mask_predictor is not None:
             return False
         return True
-
+    
     def select_training_samples(self, proposal, target):
         gt_box = target['boxes']
         gt_label = target['labels']
@@ -72,7 +86,12 @@ class RoIHeads(nn.Module):
         label[num_pos:] = 0
 
         return proposal, matched_idx, label, regression_target
-    
+    """output:
+            + proposal: tensor[N, 4]
+            + matched_idx: tensor[N]
+            + label: Tensor[N]
+            + regression_target: Tensor[num_pos, 4] chi tinh positive proposal"""
+
     def fastrcnn_inference(self, class_logit, box_regression, proposal, image_shape):
         N, num_classes = class_logit.shape
 
@@ -90,8 +109,8 @@ class RoIHeads(nn.Module):
             box, score, box_delta = proposal[keep], score[keep], box_delta[keep]
             box = self.box_coder.decode(box_delta, box)
 
-            box, score  = procecss_box(box, score, image_shape, self.min_size)
-            keep = nms(box, score, self.nms_thresh)[:self.num_detections]
+            box, score  = process_box(box, score, image_shape, self.min_size)
+            keep = nms(box, score, self.nms_thresh)[:self.num_detections] # co the thay bang batched_nms o day
             box, score = box[keep], score[keep]
             label = torch.full((len(keep),), l, dtype=keep.dtype, device=device)
 
@@ -101,7 +120,11 @@ class RoIHeads(nn.Module):
 
         results = dict(boxes=torch.cat(boxes), labels=torch.cat(labels), scores=torch.cat(scores))
         return results
-    
+    """output: 
+            + result['boxes']: tensor[M, 4] M la so bbox sau nms, process, topk...
+            + result['labels']: tensor[M]
+            + result['scores']: tensor[M]"""
+
     def forward(self, feature, proposal, image_shape, target):
         if self.training:
             proposal, matched_idx, label, regression_target = self.select_training_samples(proposal, target)
@@ -151,3 +174,8 @@ class RoIHeads(nn.Module):
                 result.update(dict(masks = mask_prob))
 
         return result, losses
+    """output: 
+        training:   + result: empty
+                    + losses: dict voi cac roi_classifier_loss, roi_box_loss, roi_mask_loss: float (scalar)
+        eval/test:  + result: dict voi cac boxes, labels, scores (output cua ham fastrcnn_inference) + mask[N, H, W] neu co
+                    + losses: empty"""

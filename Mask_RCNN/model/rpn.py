@@ -15,12 +15,15 @@ class RPNHead(nn.Module):
         for l in self.children():
             nn.init.normal_(l.weight, std=0.01)
             nn.init.constant_(l.bias, 0)
-
-    def forward(self, x):
+    """input class RPNHead: in_channels: int (output cua backbone+FPN)
+                            num_anchors: int (so anchor per pixel của feature map)"""
+    def forward(self, x): # x: [N, C, H, W] N: batch size, C: in_channels, H, W kích thước Feature map
         x = F.relu(self.conv(x))
-        logits = self.cls_logit(x)
+        logits = self.cls_logits(x)
         bbox_reg = self.bbox_pred(x)
         return logits, bbox_reg
+    """output:  logits tensor[N, num_anchors, H, W]
+                bbox_reg tensor[N, num_anchors*4, H, W]"""
     
 class RegionProposalNetwork(nn.Module):
     def __init__(self, anchor_generator, head,
@@ -32,7 +35,7 @@ class RegionProposalNetwork(nn.Module):
 
         self.anchor_generator = anchor_generator
         self.head = head
-        #
+
         self.proposal_matcher = Matcher(fg_iou_thresh, bg_iou_thresh, allow_low_quality_matches=True)
         self.fg_bg_sampler = BalancedPositiveNegativeSampler(num_samples, positive_fraction)
         self.box_coder = BoxCoder(reg_weights)
@@ -41,7 +44,18 @@ class RegionProposalNetwork(nn.Module):
         self._post_nms_top_n = post_nms_top_n
         self.nms_thresh = nms_thresh
         self.min_size = 1
-
+    """input class RegionProposalNetwork: 
+            + anchor_generator: object class AnchorGenerator
+            + head: objeect class RPNHead
+            + fg_iou_thresh: float
+            + bg_iou_thresh: float
+            + num_samples: int
+            + positve_fraction: float
+            + reg_weights: tuple(wx, wy, ww, wh)
+            + pre_nms_top_n: int
+            + post_nms_top_n: int
+            + nms_thresh: float"""
+    
     def creat_proposal(self, anchor, objectness, pred_bbox_delta, image_shape):
         if self.training:
             pre_nms_top_n = self._pre_nms_top_n['training']
@@ -60,7 +74,8 @@ class RegionProposalNetwork(nn.Module):
         proposal = proposal[keep]
         
         return proposal
-    
+    """output: tensor[M, 4] [x_min, y_min, x_max, y_max] (proposal cuoi cung duoc chon)"""
+
     def compute_loss(self, objectness, pred_bbox_delta, gt_box, anchor):
         iou = box_iou(gt_box, anchor)
         label, matched_idx = self.proposal_matcher(iou)
@@ -73,6 +88,8 @@ class RegionProposalNetwork(nn.Module):
         box_loss = F.l1_loss(pred_bbox_delta[pos_idx], regression_target, reduction='sum') / idx.numel()
 
         return objectness_loss, box_loss
+    """output:  objectness_loss: float (scalar)
+                box_loss: float (scalar)"""
     
     def forward(self, feature, image_shape, target=None):
         if target is not None:
@@ -89,3 +106,5 @@ class RegionProposalNetwork(nn.Module):
             return proposal, dict(rpn_objectness_loss=objectness_loss, rpn_box_loss=box_loss)
         
         return proposal, {}
+    """output:  proposal: tensor[M, 4]
+                dict: empty khi test, tra ve cac loss khi train"""

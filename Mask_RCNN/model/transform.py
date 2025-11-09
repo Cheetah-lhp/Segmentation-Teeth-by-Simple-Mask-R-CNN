@@ -8,7 +8,11 @@ class Transformer:
         self.max_size = max_size
         self.img_mean = img_mean
         self.img_std = img_std
-
+    """input của class Transformer: 
+            min_size: 1 gia tri int
+            max_size: 1 gia tri int 
+            img_mean: 1 tensor[3] la mean cua 3 kenh (r,g,b)
+            img_std: 1 tensor[3] la std cua 3 kenh"""
     def __call__(self, image, target):
         image = self.normalize(image)
         image, target = self.resize(image, target)
@@ -17,13 +21,14 @@ class Transformer:
         return image, target
     
     def normalize(self, image):
-        if image.shape[0] == 1:
-            image = image.repeat(3, 1, 1)
+        if image.shape[0] == 1: #image co dang tensor [C, H, W]
+            image = image.repeat(3, 1, 1) # da so backbone yeu cau anh vao co 3 kenh (repeat cac anh grayvajay)
         dtype, device = image.dtype, image.device
         mean = torch.tensor(self.img_mean, dtype=dtype, device=device)
         std = torch.tensor(self.img_std, dtype=dtype, device=device)
         return (image - mean[:, None, None]) / std[:, None, None]
-    
+    """output: image sau khi chuan hoa van la tensor [C, H_normalized, W_normalized]"""
+
     def resize(self, image, target):
         ori_image_shape = image.shape[-2:]
         min_size = float(min(ori_image_shape[-2:]))
@@ -34,28 +39,30 @@ class Transformer:
         
         if target is None:
             return image, target
-        
+        #resize anh the dung ti le resize
         box = target['boxes']
         box[:, [0, 2]] = box[:, [0, 2]] * image.shape[-1] / ori_image_shape[1]
         box[:, [1, 3]] = box[:, [1, 3]] * image.shape[-2] / ori_image_shape[0]
         target['boxes'] = box
-
+        # neu co mask thi cung resize
         if 'masks' in target:
             mask = target['masks']
             mask = F.interpolate(mask[None].float(), size=size)[0].byte()
             target['masks'] = mask
         return image, target
-    
+    """output: image tensor[C, H, W]
+               target = tensor[x_min, y_min, x_max, y_max]"""
 
     def batched_image(self, image, stride=32):
         size = image.shape[-2:]
-        max_size = tuple(math.ceil(s / stride) * stride for s in size) # make sure the size is divisible by stride
+        max_size = tuple(math.ceil(s / stride) * stride for s in size) # anh duoc pad len kich thuoc cao hon: H_pad, W_pad chia het cho stride
         batch_shape = (image.shape[-3],) + max_size
         batched_img = image.new_full(batch_shape, 0) # pad with zeros
         batched_img[:, :image.shape[-2], :image.shape[-1]] = image
         
         return batched_img[None]
-    
+    """output: tensor co them batch dimension (1, C, H_pad, W_pad)"""
+
     def postprocess(self, result, image_shape, ori_image_shape):
         box = result['boxes']
         box[:, [0, 2]] = box[:, [0, 2]] * ori_image_shape[1] / image_shape[1] # width
@@ -67,8 +74,9 @@ class Transformer:
             mask = paste_masks_in_image(mask, box, 1, ori_image_shape)
             result['masks'] = mask
         return result
-    
-def expand_detection(mask, box, padding):
+    """output: result['boxes']: tensor[N, 4] ([x_min, y_min, x_max, y_max])
+               result['mask']: tensor[N, H_ori, W_ori]"""
+def expand_detection(mask, box, padding): #pading: int so pixel them quanh mask
     M = mask.shape[-1]
     scale = (M + 2 * padding) / M # scale factor to expand the mask by padding
     padding_mask = torch.nn.functional.pad(mask, (padding,) * 4) # pad the mask
@@ -87,7 +95,9 @@ def expand_detection(mask, box, padding):
     box_exp[:, 1] = y_c - h_half
     box_exp[:, 3] = y_c + h_half
     return padding_mask, box_exp.to(torch.int64)
-
+    """output:  padding_mask: tensor[N, M, M] M la kich thuoc mask sau resize (28x28)
+                box_exp: tensor[N, 4] [x_min, y_min, x_max, y_max] """
+    
 def paste_masks_in_image(mask, box, padding, image_shape):
     mask, box = expand_detection(mask, box, padding)
 
@@ -97,15 +107,16 @@ def paste_masks_in_image(mask, box, padding, image_shape):
     for m, b, im in zip(mask, box, im_mask):
         # Resize the mask to the size of the bounding box
         b = b.tolist()
-        w = max(b[2] - b[0], 1) # 
+        w = max(b[2] - b[0], 1)
         h = max(b[3] - b[1], 1)
 
         m = F.interpolate(m[None, None], size=(h, w), mode="bilinear", align_corners=False)[0, 0]
 
-        x1 = max(b[0], 0) # 
+        x1 = max(b[0], 0)
         y1 = max(b[1], 0)
         x2 = min(b[2], image_shape[1])
         y2 = min(b[3], image_shape[0])
 
         im[y1:y2, x1:x2] = m[(y1 - b[1]):(y2 - b[1]), (x1 - b[0]):(x2 - b[0])]
     return im_mask
+    """outout: im_mask tensor[N, H, W] N object, va kich thuoc tung mask""" 
