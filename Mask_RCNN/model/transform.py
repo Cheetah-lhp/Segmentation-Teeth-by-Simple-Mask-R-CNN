@@ -19,6 +19,8 @@ class Transformer:
         image = self.batched_image(image)
 
         return image, target
+    """output:  image tensor[C, H, W]
+                target = tensor[x_min, y_min, x_max, y_max]"""
     
     def normalize(self, image):
         if image.shape[0] == 1: #image co dang tensor [C, H, W]

@@ -26,6 +26,31 @@ class MaskRCNN(nn.Module):
                  box_num_samples=512, box_positive_fraction=0.25,
                  box_reg_weights=(10., 10., 5., 5.),
                  box_score_thresh=0.1, box_nms_thresh=0.6, box_num_detections=100):
+        """input class MaskRCNN:
+            Tham so trong RPN
+                + backbone: duoc dinh nghia truoc trong nn.Module (backbone duoc su dung tinh feature trong model)
+                + num_classes: int (so luong output classes cua model, bao gom ca background)
+                + rpn_fg_iou_thresh: float (nguong IoU toi thieu giua anchor va gt box de anchor duoc coi la positive trong qua trinh train RPN) 
+                + rpn_bg_iou_thresh: float (nguong IoU toi da giua anchor va gt box de anchor duoc coi la negative trong qua trinh train RPN)
+                + rpn_num_samples: int (so luong anchors duoc lay trong moi lan train de tinh loss (posi+nega))
+                + rpn_positive_fraction: float (ti le anchor positive trong tong so anchor duoc lay de train RPN)
+                + rpn_reg_weights: (Tuple[float, float, float, float]) (cac trong so [wx, wy, ww, wh] duoc su dung de chuan hoa trong encode vaf decode box_ops.py)
+                + rpn_pre_nms_top_n_train: int (so luong proposals duoc giu truoc khi ap dung nms + top k trong train)
+                + rpn_pre_nms_top_n_test: int (so luong proposals duoc giu truoc khi ap dung nms + top k trong test)
+                + rpn_post_nms_top_n_train: int (so luong proposals duoc giu sau khi ap dung nms + top k trong train)
+                + rpn_post_nms_top_n_test: int (so luong proposals duoc giu sau khi ap dung nms + top k trong test)
+                + rpn_nms_thresh: float (nguong ioU dung trong nms de loc cac proposals bi trung nhau trong RPN)
+                
+            Tham so trong RoIHead (classification + box regression Head)
+                + box_fg_iou_thresh: float (nguong iou toi thieu giua proposals va gt box de proposal duoc coi la postivei trong giai doan train classification head)
+                + box_bg_iou_thresh: float (nguong iou toi da giua proposals va gt box de proposal duoc coi la negative trong giai doan train classification head
+                + box_num_samples: int (so luong proposals duoc lay trong train classification head de tinh loss)
+                + box_positive_fraction: float (ti le positive proposal trong tong so proposal duoc lay o box_num_samples)
+                + box_reg_weights: (Tuple[float, float, float, float]) (trong so duoc su dung de chuan hoa trong encode va decode box_ops.py trong classification head)
+                + box_score_thresh: float (trong giai doan test, chi giu lai nhung proposals co classification score >= box_score_thresh)
+                + box_nms_thresh: float (nguong iou trong giai doan test, cho nms trong classificaiton head loc final detect)
+                + box_num_detections: int (so luong detection toi da tren toan bo class, trong ket qua cuoi cung)  
+                """
         super.__init__()
         self.backbone = backbone
         out_channels = backbone.out_channels
@@ -87,7 +112,10 @@ def forward(self, image, target=None):
     else:
         result = self.transformer.postprocess(result, image_shape, ori_image_shape)
         return result
-    
+    """input: image [C, H, W]
+       output:  training: cac loss (int) trong rpn
+                test:   image tensor[C, H, W]
+                        target = tensor[x_min, y_min, x_max, y_max]"""
 
 class FastRCNNPredictor(nn.Module):
     def __init__(self, in_channels, mid_channels, num_classes):
@@ -97,7 +125,7 @@ class FastRCNNPredictor(nn.Module):
         self.cls_score = nn.Linear(mid_channels, num_classes)
         self.bbox_pred = nn.Linear(mid_channels, num_classes*4)
 
-    def forward(self, x):
+    def forward(self, x): #x [N, C, H, W] (n: so luong propossal duoc dua vao de phan loai, c, so kenh, hw kich thuoc spatial)
         x = x.flatten(start_dim=1)
         x = F.relu(self.fc1(x))
         x = F.relu(self.fc2(x))
@@ -105,7 +133,9 @@ class FastRCNNPredictor(nn.Module):
         bbox_delta = self.bbox_pred(x)
 
         return score, bbox_delta
-    
+    """output:  score[N, num_classes]
+                bbox_delta[N, num_classes*4]"""
+
 class MaskRCNNPredictor(nn.Sequential):
     def __init__(self, in_channels, layers, dim_reduced, num_classes):
         d = OrderedDict()
@@ -123,38 +153,38 @@ class MaskRCNNPredictor(nn.Sequential):
         for name, param in self.named_parameters():
             if 'weights' in name:
                 nn.init.kaiming_normal_(param, mode='fan_out', nonlinearity='relu')
-
+    """?"""
 
 class ResBackbone(nn.Module):
     def __init__(self, backbone_name, pretrained):
         super().__init__()
         body = models.resnet.__dict__[backbone_name](
-            pretrained=pretrained, non_layer = misc.FrozenBatchNorm2d)
+            pretrained=pretrained, norm_layer=misc.FrozenBatchNorm2d)
 
-        for name, parameter in body.named_parameter():
-            if 'layer2' not in name and 'layer3 not in name' and 'layer4' not in name:
-                parameter.requires_grad_(False)
+        for name, parameter in body.named_parameters():
+            if 'layer2' not in name and 'layer3' not in name and 'layer4' not in name:
+                parameter.requires_grad_(False) #freeze cac tham so thuoc layer2,3,4 
                 
         self.body = nn.ModuleDict(d for i, d in enumerate(body.named_children()) if i < 8)
         in_channels =2048
         self.out_channels = 256
 
-        self.inner_block_module = nn.Conv2d(in_channels, self.out_channels, 1)
-        self.layer_block_module = nn.Conv2d(self.out_channels, self.out_channels, 3, 1, 1)
+        self.inner_block_module = nn.Conv2d(in_channels, self.out_channels, 1) # 1x1 conv giam 2048 -> 256
+        self.layer_block_module = nn.Conv2d(self.out_channels, self.out_channels, 3, 1, 1) #3x3 conv giu nguyen 256, padding =1
         for m in self.children():
             if isinstance(m, nn.Conv2d):
                 nn.init.kaiming_uniform_(m.weight, a=1)
                 nn.init.constant_(m.bias, 0)
 
-    def forward(self, x):
+    def forward(self, x): #input x tensor[N, 3, H, W]
         for module in self.body.values():
             x = module(x)
         x = self.inner_block_module(x)
         x = self.layer_block_module(x)
         return x
-    
+    """output: tensor[N, out_channels, h_out, w_out] (thuong co dinh voi resnet pretrained: h_out = h/32, w_out = w/32)"""
+
 def maskrcnn_resnet50(pretrained, num_classes, pretrained_backbone=True):
-    #Mask RCNN tu Resnet50 lam backbone 
     if pretrained:
         backbone_pretrained = True
     backbone = ResBackbone('resnet50', pretrained_backbone)
@@ -184,3 +214,4 @@ def maskrcnn_resnet50(pretrained, num_classes, pretrained_backbone=True):
         model.load_state_dict(msd)
 
     return model
+    """luc can su dung thi load truc tiep model va truyen cac tham so can thiet"""

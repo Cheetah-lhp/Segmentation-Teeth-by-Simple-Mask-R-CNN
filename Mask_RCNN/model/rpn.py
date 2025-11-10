@@ -107,4 +107,4 @@ class RegionProposalNetwork(nn.Module):
         
         return proposal, {}
     """output:  proposal: tensor[M, 4]
-                dict: empty khi test, tra ve cac loss khi train"""
+                dict: empty khi test, tra ve cac loss (float) khi train"""

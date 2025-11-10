@@ -25,20 +25,18 @@ class RoIAlign:
         int(-2) = -2
         2 ** -2 = 0.25 → spatial_scale = 0.25"""
 
-        """Returns:
-            output (Tensor[K, C, self.output_size[0], self.output_size[1]])"""
     def __call__(self, feature, proposal, image_size):
         idx = proposal.new_full((proposal.shape[0], 1), 0)   #tensor shape [K, 1] với tất cả giá trị = 0 proposal
         roi = torch.cat([idx, proposal], dim=1) # Kết hợp id và proposal để tạo thành rois
         self.setup_scale(feature.shape[-2:], image_size)
         return rol_align(feature.to(roi), roi, self.spatial_scale, self.output_size[0], self.output_size[1], self.sampling_ratio)
     
-"""    
-Đầu vào:
-feature: Tensor [N, C, H, W] - Feature maps
-proposal: Tensor [K, 4] - Proposal boxes (x1, y1, x2, y2)
-image_shape: [H, W] - Kích thước ảnh gốc
+    """    
+    input class RoIAlign:
+    + feature: Tensor [N, C, H, W] - Feature maps
+    + proposal: Tensor [K, 4] - Proposal boxes (x1, y1, x2, y2)
+    + image_shape: [H, W] - Kích thước ảnh gốc
 
-Đầu ra:
-Tensor [K, C, output_height, output_width] - Các vùng đặc trưng đã được align
-"""
+    output:
+    tensor[K, C, output_height, output_width] - Cac vung dac trung da duoc align
+    """
