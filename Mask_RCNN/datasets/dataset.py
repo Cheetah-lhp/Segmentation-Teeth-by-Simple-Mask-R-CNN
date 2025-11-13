@@ -6,7 +6,7 @@ from PIL import Image
 from generalized_dataset import GeneralizedDataset
 
 class DentalDataset(GeneralizedDataset):
-    def __init__(self, root_dir):
+    def __init__(self, root_dir, train):
         super().__init__(max_workers=4, verbose=False)
         self.root_dir = root_dir
         self.train = True
@@ -20,7 +20,7 @@ class DentalDataset(GeneralizedDataset):
         self.ids = [
             os.path.splitext(f)[0]
             for f in os.listdir(self.img_dir) 
-            if f.endswith('.jpg')]
+            if f.lower().endswith('.jpg')]
         
         with open(os.path.join(self.root_dir, "Segmentation", "teeth_bbox.json")) as f:
             self.bbox_data = json.load(f)
@@ -55,7 +55,7 @@ class DentalDataset(GeneralizedDataset):
         labels = [int(obj["title"]) for obj in objects]
         
         boxes = torch.as_tensor(boxes, dtype=torch.float32)
-        labels = torch.ones(labels, dtype=torch.int64)
+        labels = torch.as_tensor(labels, dtype=torch.int64)
         masks = torch.as_tensor(masks, dtype=torch.uint8)
 
         target = {

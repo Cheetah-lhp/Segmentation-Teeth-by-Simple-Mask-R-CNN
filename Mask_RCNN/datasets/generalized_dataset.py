@@ -18,6 +18,7 @@ class GeneralizedDataset:
         image = transforms.ToTensor()(image)
         target = self.get_target(img_id) if self.train else {}
         return image, target   
+    
     """truy cap va kiem tra mot (mau~) phan tu trong dataset tai vi tri i"""
     def __len__(self):
         return len(self.ids)
