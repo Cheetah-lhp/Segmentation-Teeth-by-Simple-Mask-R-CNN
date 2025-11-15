@@ -12,11 +12,17 @@ class Matcher:
         """
         Arguments:
             iou (Tensor[M, N]): containing the pairwise quality between 
-            M ground-truth boxes and N predicted boxes.
+            M ground-truth boxes and N predicted boxes, có dạng ma trận MxN.
+
+        Returns:
+            label (Tensor[N]): Có kích thước N, positive (1) or negative (0) label for each predicted box,
+            -1 means ignoring this box.
+            matched_idx (Tensor[N]): indices of gt box matched by each predicted box.
         """
-        
-        value, matched_idx = iou.max(dim=0) # Lấy giá trị iou lớn nhất và index tương ứng cho mỗi predicted box
-        label = torch.full((iou.size[1],), -1, dtype=torch.float32, device=iou.device) # khởi tạo label với -1 (ignore)
+
+        # Lấy giá trị iou lớn nhất và index tương ứng cho mỗi predicted box
+        value, matched_idx = iou.max(dim=0) # Hàm max trả về giá trị max theo từng cột và index hàng của giá trị đó
+        label = torch.full((iou.size[1],), -1, dtype=torch.float32, device=iou.device) #Tạo tensor label với giá trị khởi tạo -1 (ignore)
         
         label[value > self.high_threshold] = 1
         label[value < self.low_threshold] = 0
@@ -38,10 +44,12 @@ class BalancedPositiveNegativeSampler:
     """input class BalancedPositiveNegativeSampler: positive_fraction: float
                                                     num_samples: int"""
     def __call__(self, labels):
+        # Hàm where trả về chỉ số của các phần tử thỏa mãn điều kiện
         positive = torch.where(labels == 1)[0]
         negative = torch.where(labels == 0)[0]
 
         num_pos = int(self.num_samples * self.positive_fraction)
+        # Hàm numel() trả về số phần tử trong tensor
         num_pos = min(positive.numel(), num_pos) # Giới hạn số lượng positive samples không vượt quá số lượng thực tế
         num_neg = self.num_samples - num_pos
         num_neg = min(negative.numel(), num_neg)
@@ -74,8 +82,10 @@ class AnchorGenerator:
             + ratios anchor list(0.5, 1.0, 2.0)
     """
     def set_cell_anchor(self, dtype, device):
+        # Kiểm tra xem anchor cơ bản đã được tạo chưa
         if self.cell_anchor is not None:
             return
+        
         sizes = torch.tensor(self.sizes, dtype=dtype, device=device)
         ratios = torch.tensor(self.ratios, dtype=dtype, device=device)
 

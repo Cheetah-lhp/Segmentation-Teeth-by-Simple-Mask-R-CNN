@@ -3,6 +3,7 @@ data/
 outputs/
 runs/
 checkpoints/
+test.py
 *.pth
 *.pt
 *.ckpt

@@ -71,5 +71,5 @@ class Generator:
 
 
 if __name__ == "__main__":
-    generator = Generator(source_dir="E:/Code/Project ML/Radiographs/Radiographs", save_dir="E:/Code/Project ML/test")
+    generator = Generator(source_dir="D:/main/study/IT/ML/Code/project/Segmentation-Teeth-by-Simple-Mask-R-CNN/data/Radiographs", save_dir="D:/main/study/IT/ML/Code/project/Segmentation-Teeth-by-Simple-Mask-R-CNN/data/test")
     generator.process()

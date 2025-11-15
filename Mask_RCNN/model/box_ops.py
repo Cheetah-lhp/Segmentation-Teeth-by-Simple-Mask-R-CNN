@@ -117,6 +117,11 @@ def process_box(box, score, image_size, min_size):
                         [x_minK, y_minL, x_maxK, y_maxK]]
         score_filtered = [score1, score2, ..., scoreK]"""
     
+    #trả về chỉ số của các box có width và height >= min_size
+    keep = torch.where((w >= min_size) & (h >= min_size))[0] 
+    box, score = box[keep], score[keep]
+    return box, score
+
 def nms(box, score, iou_threshold):
     return torch.ops.torchvision.nms(box, score, iou_threshold)
     """ham nms goc: return indices(la 1 tensor chua cac index cua nhung box duoc giu lai (keep))
@@ -124,6 +129,7 @@ def nms(box, score, iou_threshold):
         """
 
 def batched_nms(box, nms_threshold):
+    # tạo một tenor chỉ số từ 0 đến số lượng box - 1: tensor([0, 1, 2, ..., N-1])
     idx  = torch.arange(box.size[0])
     keep = []
 
