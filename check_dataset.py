@@ -1,5 +1,5 @@
 import matplotlib.pyplot as plt
-from dataset import DentalDataset
+from Mask_RCNN.datasets.dataset import DentalDataset
 
 dataset = DentalDataset(root_dir=r"C:\Users\Admin\OneDrive\Dokumen\AIOT Lab\My Weekly Report\Teeth Segmentation with Mask R-CNN\Tuft Dental Database", train=True)
 #lay mau dau tien

@@ -4,7 +4,7 @@ import torch.nn.functional as F
 from torch import nn
 from torch.utils.model_zoo import load_url #load link tu web
 from torchvision import models
-from torchvision import misc 
+from torchvision.ops import misc 
 
 from .utils import AnchorGenerator
 from .rpn import RPNHead, RegionProposalNetwork
