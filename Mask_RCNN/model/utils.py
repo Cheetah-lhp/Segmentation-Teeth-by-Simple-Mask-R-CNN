@@ -22,9 +22,9 @@ class Matcher:
 
         # Lấy giá trị iou lớn nhất và index tương ứng cho mỗi predicted box
         value, matched_idx = iou.max(dim=0) # Hàm max trả về giá trị max theo từng cột và index hàng của giá trị đó
-        label = torch.full((iou.size[1],), -1, dtype=torch.float32, device=iou.device) #Tạo tensor label với giá trị khởi tạo -1 (ignore)
+        label = torch.full((iou.shape[1],), -1, dtype=torch.float, device=iou.device) #Tạo tensor label với giá trị khởi tạo -1 (ignore)
         
-        label[value > self.high_threshold] = 1
+        label[value >= self.high_threshold] = 1
         label[value < self.low_threshold] = 0
 
         if self.allow_low_quality_matches:
@@ -54,8 +54,8 @@ class BalancedPositiveNegativeSampler:
         num_neg = self.num_samples - num_pos
         num_neg = min(negative.numel(), num_neg)
 
-        pos_perm = torch.randperm(positive.numel(), device=labels.device)[:num_pos] # Lấy ngẫu nhiên num_pos index từ positive
-        neg_perm = torch.randperm(negative.numel(), device=labels.device)[:num_neg]
+        pos_perm = torch.randperm(positive.numel(), device=positive.device)[:num_pos] # Lấy ngẫu nhiên num_pos index từ positive
+        neg_perm = torch.randperm(negative.numel(), device=negative.device)[:num_neg]
 
         pos_idx = positive[pos_perm] # Lấy index của positive và negative samples
         neg_idx = negative[neg_perm]
@@ -63,10 +63,10 @@ class BalancedPositiveNegativeSampler:
         return pos_idx, neg_idx
     """output: pos_idx, neg_idx Tensor[N]"""
     
-def rol_align(feature, rois, spatial_scale, pooled_height, pooled_width, sampling_ratio):
+def roi_align(feature, rois, spatial_scale, pooled_height, pooled_width, sampling_ratio):
     return torch.ops.torchvision.roi_align(feature, rois, spatial_scale, pooled_height, pooled_width, sampling_ratio, False)
     """
-    input:  feature tensor[N, C, H, W] N anh 
+    input:  feazture tensor[N, C, H, W] N anh 
             rois tensor[K, 5] [batch_idx, x1, y1, x2, y2] K so rois
             spatial_scale: float, pooled_height, pooled_width, sampling_ratio: int
     output: return pooled_rois tensor[K, C, pooled_height, pooled_width] fix size

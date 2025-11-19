@@ -15,7 +15,7 @@ from .transform import Transformer
 
 class MaskRCNN(nn.Module):
     def __init__(self, backbone, num_classes, 
-                 rpn_fg_iou_thresh=0.7, rpg_bg_iou_thresh=0.3,
+                 rpn_fg_iou_thresh=0.7, rpn_bg_iou_thresh=0.3,
                  rpn_num_samples=256, rpn_positive_fraction=0.5,
                  rpn_reg_weights=(1., 1., 1., 1.),
                  rpn_pre_nms_top_n_train=2000, rpn_pre_nms_top_n_test=1000, 
@@ -51,7 +51,7 @@ class MaskRCNN(nn.Module):
                 + box_nms_thresh: float (nguong iou trong giai doan test, cho nms trong classificaiton head loc final detect)
                 + box_num_detections: int (so luong detection toi da tren toan bo class, trong ket qua cuoi cung)  
                 """
-        super.__init__()
+        super().__init__()
         self.backbone = backbone
         out_channels = backbone.out_channels
 
@@ -66,7 +66,7 @@ class MaskRCNN(nn.Module):
         rpn_post_nms_top_n=dict(training=rpn_post_nms_top_n_train, testing=rpn_post_nms_top_n_test)
         self.rpn = RegionProposalNetwork(
             rpn_anchor_generator, rpn_head,
-            rpn_fg_iou_thresh, rpg_bg_iou_thresh,
+            rpn_fg_iou_thresh, rpn_bg_iou_thresh,
             rpn_num_samples, rpn_positive_fraction, rpn_reg_weights,
             rpn_pre_nms_top_n, rpn_post_nms_top_n, rpn_nms_thresh)
         
@@ -97,25 +97,25 @@ class MaskRCNN(nn.Module):
             image_std=[0.229, 0.224, 0.225]
         )
 
-def forward(self, image, target=None):
-    ori_image_shape = image.shape[-2:]
+    def forward(self, image, target=None):
+        ori_image_shape = image.shape[-2:]
 
-    image, target = self.transformer(image, target)
-    image_shape = image.shape[-2:]
-    feature = self.backbone(image)
-    
-    proposal, rpn_losses = self.rpn(feature, image_shape, target)
-    result, roi_losses = self.head(feature, proposal, image_shape, target)
-    
-    if self.training:
-        return dict(**rpn_losses, **roi_losses)
-    else:
-        result = self.transformer.postprocess(result, image_shape, ori_image_shape)
-        return result
-    """input: image [C, H, W]
-       output:  training: cac loss (int) trong rpn
-                test:   image tensor[C, H, W]
-                        target = tensor[x_min, y_min, x_max, y_max]"""
+        image, target = self.transformer(image, target)
+        image_shape = image.shape[-2:]
+        feature = self.backbone(image)
+        
+        proposal, rpn_losses = self.rpn(feature, image_shape, target)
+        result, roi_losses = self.head(feature, proposal, image_shape, target)
+        
+        if self.training:
+            return dict(**rpn_losses, **roi_losses)
+        else:
+            result = self.transformer.postprocess(result, image_shape, ori_image_shape)
+            return result
+        """input: image [C, H, W]
+        output:  training: cac loss (int) trong rpn
+                    test:   image tensor[C, H, W]
+                            target = tensor[x_min, y_min, x_max, y_max]"""
 
 class FastRCNNPredictor(nn.Module):
     def __init__(self, in_channels, mid_channels, num_classes):
@@ -145,13 +145,13 @@ class MaskRCNNPredictor(nn.Sequential):
             d['relu{}'.format(layer_idx)] = nn.ReLU(inplace=True)
             next_feature = layer_features   
         
-        d['mask_conv5'] = nn.LazyConvTranspose2d(next_feature, dim_reduced, 2, 2, 0)
+        d['mask_conv5'] = nn.ConvTranspose2d(next_feature, dim_reduced, 2, 2, 0)
         d['relu5'] = nn.ReLU(inplace=True)
         d['mask_fcn_logits'] = nn.Conv2d(dim_reduced, num_classes, 1, 1, 0)
-        super.__init__()
+        super().__init__()
 
         for name, param in self.named_parameters():
-            if 'weights' in name:
+            if 'weight' in name:
                 nn.init.kaiming_normal_(param, mode='fan_out', nonlinearity='relu')
     """?"""
 
@@ -163,7 +163,7 @@ class ResBackbone(nn.Module):
 
         for name, parameter in body.named_parameters():
             if 'layer2' not in name and 'layer3' not in name and 'layer4' not in name:
-                parameter.requires_grad_(False) #freeze cac tham so thuoc layer2,3,4 
+                parameter.requires_grad_(False) #freeze cac tham so khong thuoc layer2,3,4, chi hoc 2,3 ,4 
                 
         self.body = nn.ModuleDict(d for i, d in enumerate(body.named_children()) if i < 8)
         in_channels =2048

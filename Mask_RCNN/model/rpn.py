@@ -19,7 +19,7 @@ class RPNHead(nn.Module):
     """input class RPNHead: in_channels: int (output cua backbone+FPN)
                             num_anchors: int (so anchor per pixel của feature map)"""
     def forward(self, x): # x: [N, C, H, W] N: batch size, C: in_channels, H, W kích thước Feature map
-        x = F.relu(self.conv_shared(x))
+        x = F.relu(self.conv(x))
         logits = self.cls_logits(x)
         bbox_reg = self.bbox_pred(x)
         '''
@@ -77,10 +77,10 @@ class RegionProposalNetwork(nn.Module):
             pre_nms_top_n = self._pre_nms_top_n['testing'] #lấy nhiều hơn để tăng độ chính xác khi đánh giá
             post_nms_top_n = self._post_nms_top_n['testing']
 
-            pre_nms_top_n = min(objectness.shape[0], pre_nms_top_n)
-            top_n_idx  = objectness.topk(pre_nms_top_n)[1]
-            score = objectness[top_n_idx]
-            proposal = self.box_coder.decode(pred_bbox_delta[top_n_idx], anchor[top_n_idx])
+        pre_nms_top_n = min(objectness.shape[0], pre_nms_top_n)
+        top_n_idx  = objectness.topk(pre_nms_top_n)[1]
+        score = objectness[top_n_idx]
+        proposal = self.box_coder.decode(pred_bbox_delta[top_n_idx], anchor[top_n_idx])
 
         proposal, score = process_box(proposal, score, image_shape, self.min_size)
         keep = nms(proposal, score, self.nms_thresh)[:post_nms_top_n]

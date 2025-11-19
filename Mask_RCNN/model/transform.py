@@ -33,8 +33,8 @@ class Transformer:
 
     def resize(self, image, target):
         ori_image_shape = image.shape[-2:]
-        min_size = float(min(ori_image_shape[-2:]))
-        max_size = float(max(ori_image_shape[-2:]))
+        min_size = float(min(image.shape[-2:]))
+        max_size = float(max(image.shape[-2:]))
         scale_factor = min(self.min_size / min_size, self.max_size / max_size)
         size = [round(s * scale_factor) for s in ori_image_shape]
         image = F.interpolate(image[None], size=size, mode="bilinear", align_corners=False)[0]
@@ -112,7 +112,7 @@ def paste_masks_in_image(mask, box, padding, image_shape):
         w = max(b[2] - b[0], 1)
         h = max(b[3] - b[1], 1)
 
-        m = F.interpolate(m[None, None], size=(h, w), mode="bilinear", align_corners=False)[0, 0]
+        m = F.interpolate(m[None, None], size=(h, w), mode="bilinear", align_corners=False)[0][0]
 
         x1 = max(b[0], 0)
         y1 = max(b[1], 0)

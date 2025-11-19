@@ -3,7 +3,7 @@ import torch.nn.functional as F
 from torch import nn
 
 from .pooler import RoIAlign
-from .utils import Matcher, BalancedPositiveNegativeSampler, rol_align, AnchorGenerator
+from .utils import Matcher, BalancedPositiveNegativeSampler, roi_align, AnchorGenerator
 from .box_ops import BoxCoder, box_iou, process_box, nms
 
 def fastrcnn_loss(class_logits, box_regression, labels, regression_targets):
@@ -25,7 +25,7 @@ def maskrcnn_loss(mask_logit, proposal, matched_idx, label, gt_mask):
 
     M = mask_logit.shape[-1]
     gt_mask = gt_mask[:, None].to(roi)
-    mask_target = rol_align(gt_mask.float(), roi, 1.0, M, M, 0)[:, 0]
+    mask_target = roi_align(gt_mask.float(), roi, 1.0, M, M, 0)[:, 0]
 
     idx = torch.arange(label.shape[0], device=label.device)
     mask_loss = F.binary_cross_entropy_with_logits(mask_logit[idx, label], mask_target)
@@ -62,9 +62,9 @@ class RoIHeads(nn.Module):
             + num_detection: int"""
     
     def has_mask(self):
-        if self.mask_roi_pool is not None:
+        if self.mask_roi_pool is None:
             return False
-        if self.mask_predictor is not None:
+        if self.mask_predictor is None:
             return False
         return True
     

@@ -1,6 +1,6 @@
 import math
 import torch
-
+import torchvision
 class BoxCoder:
     def __init__(self, weights, bbox_xform_clip=math.log(1000. / 16)):
         self.weights = weights
@@ -123,7 +123,7 @@ def process_box(box, score, image_size, min_size):
     return box, score
 
 def nms(box, score, iou_threshold):
-    return torch.ops.torchvision.nms(box, score, iou_threshold)
+    return torchvision.ops.nms(box, score, iou_threshold)
     """ham nms goc: return indices(la 1 tensor chua cac index cua nhung box duoc giu lai (keep))
         indices[K], K la so tensor cuoi cung sau khi filtered + nms
         """
