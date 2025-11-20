@@ -44,9 +44,23 @@ class TeethDataset:
         for item in annotations:
             for obj in item["Label"]["objects"]:
                 class_titles.add(obj["title"])
+                
+        # Split numeric vs alphabetic
+        numeric_titles = sorted([t for t in class_titles if t.isdigit()], key=int)
+        alpha_titles = sorted([t for t in class_titles if not t.isdigit()])
+        
+        # Create mapping
+        mapping = {}
 
-        for title in class_titles:
-            class_id = int(title)
+        # Numeric labels preserve original numbers
+        for t in numeric_titles:
+            mapping[t] = int(t)
+        
+        start_id = max(mapping.values(), default=0) + 1
+        for idx, t in enumerate(alpha_titles):
+            mapping[t] = start_id + idx
+
+        for title, class_id in mapping.items():
             self.add_class("teeth", class_id, f"tooth_{title}")
 
         # Add image entries
@@ -59,7 +73,7 @@ class TeethDataset:
             objects = []
             for obj in item["Label"]["objects"]:
                 objects.append({
-                    "class_id": int(obj["title"]),
+                    "class_id": mapping[obj["title"]],
                     "polygons": obj["polygons"]
                 })
 
