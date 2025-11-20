@@ -12,6 +12,10 @@ class TeethDataset:
         self.class_info = [{"source": "", "id": 0, "name": "BG"}]  # Background class
         self._image_ids = []
 
+        ### Mapping cho cac label khong phai so
+        self.non_num_map = {}
+        self.next_label = 100
+
     def add_class(self, source, class_id, class_name):
         # Avoid duplicates
         for info in self.class_info:
@@ -69,9 +73,19 @@ class TeethDataset:
             image_path = os.path.join(subset_dir, filename)
             if not os.path.exists(image_path):
                 continue
-
+            ###
             objects = []
             for obj in item["Label"]["objects"]:
+                title = str(obj["title"]).strip()
+
+                if title.isdigit():
+                    class_id = int(title)
+                else:
+                    if title not in self.non_num_map:
+                        self.non_num_map[title] = self.next_label
+                        self.next_label += 1
+                    class_id = self.non_num_map[title]
+
                 objects.append({
                     "class_id": mapping[obj["title"]],
                     "polygons": obj["polygons"]
