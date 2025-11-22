@@ -19,7 +19,7 @@ def main():
     dataset = TorchTeethDataset(md, max_size=512)
 
     model = maskrcnn_resnet50_fpn(num_classes=md.num_classes)
-    model.load_state_dict(torch.load("maskrcnn_epoch10.pth", map_location=device, weights_only=True))
+    model.load_state_dict(torch.load("weights_training_epoch/maskrcnn_epoch60.pth", map_location=device, weights_only=True))
     model.to(device)
     model.eval()
 
