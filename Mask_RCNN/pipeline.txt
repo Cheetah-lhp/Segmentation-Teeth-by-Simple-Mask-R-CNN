@@ -33,3 +33,16 @@ output: (N, L, W, H) N số rois, L là số labels cũng đồng thời là s�
             ví dụ: mask_i = masks(i, class_id[i], :, :) sau khi áp dụng softmax mang giá trị là soft probability (giá trị từ 0->1) => resize ảnh + threshold tạo ra mask nhị phân
                    mask_1 = masks(1, 5, :, :) roi1 có label predict là 5 -> tạo ảnh nhị phân tương ứng có kích thước w*h
                    mask_2 = masks(2, 11, :, :) roi2 có label predict là 11 -> tạo ảnh nhị phân tương ứng
+
+Block pipeline:
+1.
+transform
+box_ops
+utils
+2.
+box_ops + utils -> rpn
+utils -> pooler 
+3.
+pooler + utils + box_ops -> roi_heads
+4.
+transform + box_ops + utils + rpn + pooler + roi_heads -> mask_rcnn
