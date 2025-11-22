@@ -1,7 +1,7 @@
 import torch
 import math
 
-from utils import roi_align
+from .utils import roi_align
 
 class RoIAlign:
     def __init__(self, output_size, sampling_ratio):
@@ -9,12 +9,12 @@ class RoIAlign:
         self.sampling_ratio = sampling_ratio
         self.spatial_scale = None
 
-    def setup_scale(self, feature_size, image_size):
+    def setup_scale(self, feature_shape, image_shape):
         if self.spatial_scale is not None:
             return
         possible_scale = []
 
-        for f, i in zip(feature_size, image_size):
+        for f, i in zip(feature_shape, image_shape):
             stack = 2 ** int(math.log2(f/i))
             possible_scale.append(stack)
         assert possible_scale[0] == possible_scale[1] # anh khong vuong (H khac W) feature map khong dong ty le -> crash
@@ -25,10 +25,10 @@ class RoIAlign:
         int(-2) = -2
         2 ** -2 = 0.25 → spatial_scale = 0.25"""
 
-    def __call__(self, feature, proposal, image_size):
+    def __call__(self, feature, proposal, image_shape):
         idx = proposal.new_full((proposal.shape[0], 1), 0)   #tensor shape [K, 1] với tất cả giá trị = 0 proposal
         roi = torch.cat((idx, proposal), dim=1) # Kết hợp id và proposal để tạo thành rois
-        self.setup_scale(feature.shape[-2:], image_size)
+        self.setup_scale(feature.shape[-2:], image_shape)
         return roi_align(feature.to(roi), roi, self.spatial_scale, self.output_size[0], self.output_size[1], self.sampling_ratio)
     
     """    

@@ -26,8 +26,8 @@ class BoxCoder:
         #kich thuoc va tam cua ground truth box
         gt_width = reference_boxes[:, 2] - reference_boxes[:, 0]
         gt_height = reference_boxes[:, 3] - reference_boxes[:, 1]
-        gt_ctr_x = reference_boxes[:, 0] + 0.5*width
-        gt_ctr_y = reference_boxes[:, 1] + 0.5*height
+        gt_ctr_x = reference_boxes[:, 0] + 0.5*gt_width
+        gt_ctr_y = reference_boxes[:, 1] + 0.5*gt_height
 
         #tính offsets -> cho nay chia cho width va height la de chuan hoa, offset luon co gia tri tuong doi, khong quan tam box do co kich thuoc to hay nho
         dx = self.weights[0] * (gt_ctr_x - ctr_x) / width
@@ -116,11 +116,6 @@ def process_box(box, score, image_size, min_size):
                         ...
                         [x_minK, y_minL, x_maxK, y_maxK]]
         score_filtered = [score1, score2, ..., scoreK]"""
-    
-    #trả về chỉ số của các box có width và height >= min_size
-    keep = torch.where((w >= min_size) & (h >= min_size))[0] 
-    box, score = box[keep], score[keep]
-    return box, score
 
 def nms(box, score, iou_threshold):
     return torchvision.ops.nms(box, score, iou_threshold)
@@ -130,7 +125,7 @@ def nms(box, score, iou_threshold):
 
 def batched_nms(box, nms_threshold):
     # tạo một tenor chỉ số từ 0 đến số lượng box - 1: tensor([0, 1, 2, ..., N-1])
-    idx  = torch.arange(box.size[0])
+    idx  = torch.arange(box.size(0))
     keep = []
 
     while idx.size(0) > 0:

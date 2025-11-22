@@ -8,7 +8,7 @@ from .utils import Matcher, BalancedPositiveNegativeSampler
 class RPNHead(nn.Module):
     def __init__(self, in_channels, num_anchors):
         super().__init__()
-        self.conv_shared = nn.Conv2d(in_channels, in_channels, kernel_size = 3, stride = 1, padding = 1)
+        self.conv = nn.Conv2d(in_channels, in_channels, kernel_size = 3, stride = 1, padding = 1)
         self.cls_logits = nn.Conv2d(in_channels, num_anchors, kernel_size = 1)
         self.bbox_pred = nn.Conv2d(in_channels, 4 * num_anchors, kernel_size = 1)
 
@@ -23,7 +23,7 @@ class RPNHead(nn.Module):
         logits = self.cls_logits(x)
         bbox_reg = self.bbox_pred(x)
         '''
-        logits	xác suất vật thể (objectness) cho từng anchor	[B, num_anchors, H, W]
+        logits	scores vật thể (objectness) cho từng anchor	[B, num_anchors, H, W]
         bbox_reg độ dịch chuyển (dx, dy, dw, dh) cho từng anchor	[B, 4 * num_anchors, H, W]'''
         return logits, bbox_reg
     """output:  logits tensor[N, num_anchors, H, W]

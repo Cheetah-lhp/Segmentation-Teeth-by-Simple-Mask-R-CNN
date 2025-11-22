@@ -148,7 +148,7 @@ class MaskRCNNPredictor(nn.Sequential):
         d['mask_conv5'] = nn.ConvTranspose2d(next_feature, dim_reduced, 2, 2, 0)
         d['relu5'] = nn.ReLU(inplace=True)
         d['mask_fcn_logits'] = nn.Conv2d(dim_reduced, num_classes, 1, 1, 0)
-        super().__init__()
+        super().__init__(d)
 
         for name, param in self.named_parameters():
             if 'weight' in name:

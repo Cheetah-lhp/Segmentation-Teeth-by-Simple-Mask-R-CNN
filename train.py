@@ -162,12 +162,14 @@ def main():
     model.to(device)
     optimizer = optim.Adam(model.parameters(), lr=1e-4)
 
-    num_epochs = 10
+    num_epochs = 60
     for epoch in range(num_epochs):
         loss = train_one_epoch(model, optimizer, train_loader, device)
         print(f"Epoch {epoch+1}/{num_epochs}, Loss: {loss:.4f}")
 
-        torch.save(model.state_dict(), f"maskrcnn_epoch{epoch+1}.pth")
+        SAVE_DIR = r"C:\Users\Admin\OneDrive\Dokumen\AIOT Lab\My Weekly Report\Teeth Segmentation with Mask R-CNN\weights_training_epoch"
+        os.makedirs(SAVE_DIR, exist_ok=True)
+        torch.save(model.state_dict(), os.path.join(SAVE_DIR, f"maskrcnn_epoch{epoch+1}.pth"))
         #free VRAM moi epoch
         torch.cuda.empty_cache()
 

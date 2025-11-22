@@ -3,11 +3,11 @@ import torch.nn.functional as F
 from torch import nn
 
 from .pooler import RoIAlign
-from .utils import Matcher, BalancedPositiveNegativeSampler, roi_align, AnchorGenerator
+from .utils import Matcher, BalancedPositiveNegativeSampler, roi_align
 from .box_ops import BoxCoder, box_iou, process_box, nms
 
-def fastrcnn_loss(class_logits, box_regression, labels, regression_targets):
-    classification_loss = F.cross_entropy(class_logits, labels)
+def fastrcnn_loss(class_logits, box_regression, label, regression_targets):
+    classification_loss = F.cross_entropy(class_logits, label)
 
     N, num_pos = class_logits.shape[0], regression_targets.shape[0]
     box_regression = box_regression.reshape(N, -1, 4)
@@ -25,7 +25,7 @@ def maskrcnn_loss(mask_logit, proposal, matched_idx, label, gt_mask):
 
     M = mask_logit.shape[-1]
     gt_mask = gt_mask[:, None].to(roi)
-    mask_target = roi_align(gt_mask.float(), roi, 1.0, M, M, 0)[:, 0]
+    mask_target = roi_align(gt_mask, roi, 1., M, M, -1)[:, 0]
 
     idx = torch.arange(label.shape[0], device=label.device)
     mask_loss = F.binary_cross_entropy_with_logits(mask_logit[idx, label], mask_target)
@@ -41,7 +41,9 @@ class RoIHeads(nn.Module):
         self.box_roi_pool = box_roi_pool
         self.box_predictor = box_predictor
 
-        self.proposal_matcher = Matcher(fg_iou_thresh, bg_iou_thresh, allow_low_quality_matches=True)
+        self.mask_roi_pool = None
+        self.mask_predictor = None
+        self.proposal_matcher = Matcher(fg_iou_thresh, bg_iou_thresh, allow_low_quality_matches=False)
         self.fg_bg_sampler = BalancedPositiveNegativeSampler(num_samples, positive_fraction)
         self.box_coder = BoxCoder(reg_weights)
 
@@ -155,7 +157,7 @@ class RoIHeads(nn.Module):
                 mask_proposal = result['boxes']
 
                 if mask_proposal.shape[0] == 0:
-                    result.update(dict(mask=torch.empty((0, 28, 28))))
+                    result.update(dict(masks=torch.empty((0, 28, 28))))
                     return result, losses
                 
             mask_feature = self.mask_roi_pool(feature, mask_proposal, image_shape)
