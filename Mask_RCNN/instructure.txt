@@ -38,4 +38,10 @@ Kết nổi lại repo
 Push lên branch phụ
     git push -u origin progress (thay progress bằng tên branch)
 
-    
+Clone dự án về
+    B1: git clone --filter=blob:none --no-checkout https://github.com/Cheetah-lhp/Segmentation-Teeth-by-Simple-Mask-R-CNN.git
+    B2: cd Segmentation-Teeth-by-Simple-Mask-R-CNN
+    B3: git lfs install --skip-smudge
+    B4: git checkout main
+    B5: Vàp từng file rồi tải file data raw về 
+    B6: Tự thêm vào 
