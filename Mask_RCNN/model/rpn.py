@@ -107,7 +107,7 @@ class RegionProposalNetwork(nn.Module):
     
     def forward(self, feature, image_shape, target=None):
         if target is not None:
-            gt_box = target['boxes']
+            gt_box = target[0]['boxes']
 
         '''tạo các anchor boxes (khung tham chiếu) cho toàn bộ feature map.
             anchor: [N, 4]  (tọa độ [x1, y1, x2, y2] trên ảnh gốc)'''
@@ -121,7 +121,7 @@ class RegionProposalNetwork(nn.Module):
         '''→ [B * H * W * num_anchors, 4] Mỗi hàng là (dx, dy, dw, dh) của một anchor.'''
         pred_bbox_delta = pred_bbox_delta.permute(0, 2, 3, 1).reshape(-1, 4)
 
-        proposal = self.create_proposal(anchor, objectness.detach(), pred_bbox_delta.detach(), image_shape)
+        proposal = self.create_proposal(anchor, objectness.detach(), pred_bbox_delta.detach(), image_shape[0])
         if self.training:
             objectness_loss, box_loss = self.compute_loss(objectness, pred_bbox_delta, gt_box, anchor)
             return proposal, dict(rpn_objectness_loss=objectness_loss, rpn_box_loss=box_loss)

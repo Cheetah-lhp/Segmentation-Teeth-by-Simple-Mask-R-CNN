@@ -7,15 +7,29 @@ from .utils import Matcher, BalancedPositiveNegativeSampler, roi_align
 from .box_ops import BoxCoder, box_iou, process_box, nms
 
 def fastrcnn_loss(class_logits, box_regression, label, regression_targets):
+    # print("\n roi box loss degub ===")
+    # print("class_logits mean:", class_logits.mean().item())
+    # print("labels unique:", label.unique())
+    # print("box_regression stats:", box_regression.min().item(), box_regression.max().item())
+    # print("regression_targets stats:", regression_targets.min().item(), regression_targets.max().item())
+
     classification_loss = F.cross_entropy(class_logits, label)
 
-    N, num_pos = class_logits.shape[0], regression_targets.shape[0]
-    box_regression = box_regression.reshape(N, -1, 4)
-    box_regression, label = box_regression[:num_pos], label[:num_pos]
-    box_idx = torch.arange(num_pos, device=label.device)
+    pos_idx = torch.where(label > 0)[0]
+    if len(pos_idx) == 0:
+        return classification_loss, torch.tensor(0., device=label.device)
+    
+    box_regression = box_regression.reshape(-1, class_logits.shape[1], 4)
+    matched_box_reg = box_regression[pos_idx, label[pos_idx]]
+    box_loss = F.smooth_l1_loss(
+        matched_box_reg,
+        regression_targets[pos_idx],
+        reduction='sum'
+    )
 
-    box_reg_loss = F.smooth_l1_loss(box_regression[box_idx, label], regression_targets, reduction='sum')
-    return classification_loss, box_reg_loss
+    box_loss = box_loss / label.numel()
+
+    return classification_loss, box_loss
 """output:  classification_loss: float (scalar)
             box_reg_loss: float (scalar)"""
 
@@ -71,8 +85,12 @@ class RoIHeads(nn.Module):
         return True
     
     def select_training_samples(self, proposal, target):
-        gt_box = target['boxes']
-        gt_label = target['labels']
+        # print("\n roi select_training_samples debug")
+        # print("proposals shape:", proposal[0].shape)
+        # print("GT boxes:", target[0]["boxes"])
+
+        gt_box = target[0]['boxes']
+        gt_label = target[0]['labels']
         proposal = torch.cat((proposal, gt_box))
 
         iou = box_iou(gt_box, proposal)
@@ -86,6 +104,7 @@ class RoIHeads(nn.Module):
         label = gt_label[matched_idx]
         num_pos = pos_idx.shape[0]
         label[num_pos:] = 0
+        #print("labels_after_matching:", label)
 
         return proposal, matched_idx, label, regression_target
     """output:
@@ -164,7 +183,7 @@ class RoIHeads(nn.Module):
             mask_logit = self.mask_predictor(mask_feature)
 
             if self.training:
-                gt_mask = target['masks']
+                gt_mask = target[0]['masks']
                 mask_loss = maskrcnn_loss(mask_logit, mask_proposal, pos_matched_idx, mask_label, gt_mask)
                 losses.update(dict(roi_mask_loss=mask_loss))
             else:

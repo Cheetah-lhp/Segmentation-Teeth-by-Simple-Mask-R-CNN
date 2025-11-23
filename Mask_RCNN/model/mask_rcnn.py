@@ -1,5 +1,5 @@
 from collections import OrderedDict
-
+import torch
 import torch.nn.functional as F
 from torch import nn
 from torch.utils.model_zoo import load_url #load link tu web
@@ -93,18 +93,28 @@ class MaskRCNN(nn.Module):
         #Transformer
         self.transformer = Transformer(
             min_size=800, max_size=1333,
-            image_mean=[0.485, 0.456, 0.406],
-            image_std=[0.229, 0.224, 0.225]
+            img_mean=[0.485, 0.456, 0.406],
+            img_std=[0.229, 0.224, 0.225]
         )
 
-    def forward(self, image, target=None):
-        ori_image_shape = image.shape[-2:]
+    def forward(self, images, target=None):
+        ori_image_shape = [img.shape[-2:] for img in images]
 
-        image, target = self.transformer(image, target)
-        image_shape = image.shape[-2:]
-        feature = self.backbone(image)
+        images, target = self.transformer(images, target)
+        # print("\n transformer ouput debug")
+        # print("image_shape after transform:", [img.shape for img in images])
+        # print("targets[0]['boxes'] after transform:", target[0]['boxes'])
+        # print("targets[0]['labels']:", target[0]['labels'])
+
+        image_shape = [img.shape[-2:] for img in images]
+        batched_images = torch.stack(images, dim=0)
+        feature = self.backbone(batched_images)
         
         proposal, rpn_losses = self.rpn(feature, image_shape, target)
+        # print("\n rpn output debug")
+        # print("Num proposals:", len(proposal[0]))
+        # print("Sample proposals:", proposal[0][:5])
+
         result, roi_losses = self.head(feature, proposal, image_shape, target)
         
         if self.training:
@@ -186,7 +196,7 @@ class ResBackbone(nn.Module):
 
 def maskrcnn_resnet50(pretrained, num_classes, pretrained_backbone=True):
     if pretrained:
-        backbone_pretrained = True
+        pretrained_backbone = True
     backbone = ResBackbone('resnet50', pretrained_backbone)
     model = MaskRCNN(backbone, num_classes)
 
@@ -195,23 +205,34 @@ def maskrcnn_resnet50(pretrained, num_classes, pretrained_backbone=True):
             'maskrcnn_resnet50':
                 'https://download.pytorch.org/models/maskrcnn_resnet50_fpn_coco-bf2d0c1e.pth',
         }
-        model_state_dict = load_url(model_urls['maskrcnn_resnet50'])
+        #model_state_dict = load_url(model_urls['maskrcnn_resnet50'])
 
-        pretrained_msd = list(model_state_dict.values())
-        del_list = [i for i in range(256, 271)] + [i for i in range(273, 279)]
-        for i, del_idx in enumerate(del_list):
-            pretrained_msd.pop(del_idx - i)
+        # pretrained_msd = list(model_state_dict.values())
+        # del_list = [i for i in range(256, 271)] + [i for i in range(273, 279)]
+        # for i, del_idx in enumerate(del_list):
+        #     pretrained_msd.pop(del_idx - i)
 
-        msd = model.state_dict()
-        skip_list = [271, 272, 273, 274, 279, 280, 281, 282, 293, 294]
-        if num_classes == 91:
-            skip_list = [271, 272, 273, 274]
-        for i, name in enumerate(msd):
-            if i in skip_list:
-                continue
-            msd[name].copy_(pretrained_msd[i])
+        # msd = model.state_dict()
+        # skip_list = [271, 272, 273, 274, 279, 280, 281, 282, 293, 294]
+        # if num_classes == 91:
+        #     skip_list = [271, 272, 273, 274]
+        # for i, name in enumerate(msd):
+        #     if i in skip_list:
+        #         continue
+        #     msd[name].copy_(pretrained_msd[i])
 
-        model.load_state_dict(msd)
+        # model.load_state_dict(msd)
+
+        coco_weights = load_url(model_urls['maskrcnn_resnet50'])
+        model_dict = model.state_dict()
+
+        filtered = {
+            k: v for k, v in coco_weights.items()
+            if k in model_dict and model_dict[k].shape == v.shape
+        }
+
+        model_dict.update(filtered)
+        model.load_state_dict(model_dict)
 
     return model
     """luc can su dung thi load truc tiep model va truyen cac tham so can thiet"""

@@ -127,7 +127,13 @@ class AnchorGenerator:
     def __call__(self, feature, image_size):
         dtype, device = feature.dtype, feature.device
         grid_size = tuple(feature.shape[-2:]) # Lấy kích thước của feature map
-        stride = tuple(int(i/g) for i, g in zip(image_size, grid_size)) # Tính stride dựa trên kích thước ảnh và kích thước feature map
+        # Lấy ảnh đầu tiên (hoặc batch) để tính stride
+        h, w = image_size[0] if isinstance(image_size, (list, tuple)) else image_size
+        h, w = int(h), int(w)
+        image_size = (h, w)
+
+        grid_size = tuple(int(x) for x in grid_size)
+        stride = tuple(i//g for i, g in zip(image_size, grid_size)) # Tính stride dựa trên kích thước ảnh và kích thước feature map
 
         self.set_cell_anchor(dtype, device) # Thiết lập anchor cho mỗi ô trên feature map
         anchor = self.cached_grid_anchor(grid_size, stride) # Lấy anchor từ cache hoặc tạo mới nếu chưa có

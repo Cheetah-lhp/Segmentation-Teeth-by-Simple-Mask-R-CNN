@@ -13,12 +13,12 @@ class Transformer:
             max_size: 1 gia tri int 
             img_mean: 1 tensor[3] la mean cua 3 kenh (r,g,b)
             img_std: 1 tensor[3] la std cua 3 kenh"""
-    def __call__(self, image, target):
-        image = self.normalize(image)
-        image, target = self.resize(image, target)
-        image = self.batched_image(image)
+    def __call__(self, images, targets):
+        images = [self.normalize(img) for img in images]
+        images, targets = self.resize(images, targets)
+        images = [self.batched_image(img) for img in images]
 
-        return image, target
+        return images, targets
     """output:  image tensor[C, H, W]
                 target = tensor[x_min, y_min, x_max, y_max]"""
     
@@ -31,27 +31,31 @@ class Transformer:
         return (image - mean[:, None, None]) / std[:, None, None]
     """output: image sau khi chuan hoa van la tensor [C, H_normalized, W_normalized]"""
 
-    def resize(self, image, target):
-        ori_image_shape = image.shape[-2:]
-        min_size = float(min(image.shape[-2:]))
-        max_size = float(max(image.shape[-2:]))
-        scale_factor = min(self.min_size / min_size, self.max_size / max_size)
-        size = [round(s * scale_factor) for s in ori_image_shape]
-        image = F.interpolate(image[None], size=size, mode="bilinear", align_corners=False)[0]
-        
-        if target is None:
-            return image, target
-        #resize anh the dung ti le resize
-        box = target['boxes']
-        box[:, [0, 2]] = box[:, [0, 2]] * image.shape[-1] / ori_image_shape[1]
-        box[:, [1, 3]] = box[:, [1, 3]] * image.shape[-2] / ori_image_shape[0]
-        target['boxes'] = box
-        # neu co mask thi cung resize
-        if 'masks' in target:
-            mask = target['masks']
-            mask = F.interpolate(mask[None].float(), size=size)[0].byte()
-            target['masks'] = mask
-        return image, target
+    def resize(self, images, targets):
+        new_images = []
+        if targets is None:
+            targets = [None] * len(images)
+        new_targets = []
+        for img, tg in zip(images, targets):
+            ori_h, ori_w = img.shape[-2:]
+            min_size = float(min(ori_h, ori_w))
+            max_size = float(max(ori_h, ori_w))
+            scale_factor = min(self.min_size / min_size, self.max_size / max_size)
+            new_h, new_w = round(ori_h * scale_factor), round(ori_w * scale_factor)
+            img_resized = F.interpolate(img[None], size=(new_h, new_w), mode="bilinear", align_corners=False)[0]
+            new_images.append(img_resized)
+
+            if tg is not None:
+                box = tg['boxes']
+                box[:, [0, 2]] = box[:, [0, 2]] * new_w / ori_w
+                box[:, [1, 3]] = box[:, [1, 3]] * new_h / ori_h
+                tg['boxes'] = box
+                if 'masks' in tg:
+                    mask = tg['masks']
+                    mask = F.interpolate(mask[None].float(), size=(new_h, new_w))[0].byte()
+                    tg['masks'] = mask
+            new_targets.append(tg)
+        return new_images, new_targets
     """output: image tensor[C, H, W]
                target = tensor[x_min, y_min, x_max, y_max]"""
 
@@ -62,7 +66,7 @@ class Transformer:
         batched_img = image.new_full(batch_shape, 0) # pad with zeros
         batched_img[:, :image.shape[-2], :image.shape[-1]] = image
         
-        return batched_img[None]
+        return batched_img
     """output: tensor co them batch dimension (1, C, H_pad, W_pad)"""
 
     def postprocess(self, result, image_shape, ori_image_shape):

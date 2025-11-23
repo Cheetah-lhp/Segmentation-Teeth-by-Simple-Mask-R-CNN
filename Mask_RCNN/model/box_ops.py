@@ -101,11 +101,11 @@ def box_iou(box_a, box_b):
               ...
                [ioun1, ioun2, ..., iounm]]"""
     
-def process_box(box, score, image_size, min_size):
+def process_box(box, score, image_shape, min_size):
     #lọc các box nhỏ hơn min_size và cắt các box vượt quá kích thước ảnh
 
-    box[:, [0, 2]] = box[:, [0, 2]].clamp(0, max=image_size[1])
-    box[:, [1, 3]] = box[:, [1, 3]].clamp(0, max=image_size[0])
+    box[:, [0, 2]] = box[:, [0, 2]].clamp(0, image_shape[1])
+    box[:, [1, 3]] = box[:, [1, 3]].clamp(0, image_shape[0])
 
     w, h = box[:, 2] - box[:, 0], box[:, 3] - box[:, 1]
     keep = torch.where((w >= min_size) & (h >= min_size))[0]

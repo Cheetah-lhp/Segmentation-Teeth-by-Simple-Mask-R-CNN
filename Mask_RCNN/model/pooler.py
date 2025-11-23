@@ -28,7 +28,7 @@ class RoIAlign:
     def __call__(self, feature, proposal, image_shape):
         idx = proposal.new_full((proposal.shape[0], 1), 0)   #tensor shape [K, 1] với tất cả giá trị = 0 proposal
         roi = torch.cat((idx, proposal), dim=1) # Kết hợp id và proposal để tạo thành rois
-        self.setup_scale(feature.shape[-2:], image_shape)
+        self.setup_scale(feature.shape[-2:], image_shape[0])
         return roi_align(feature.to(roi), roi, self.spatial_scale, self.output_size[0], self.output_size[1], self.sampling_ratio)
     
     """    
