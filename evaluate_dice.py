@@ -1,0 +1,192 @@
+import torch
+import numpy as np
+import os
+import matplotlib.pyplot as plt
+from tqdm import tqdm
+from torchvision.models.detection import maskrcnn_resnet50_fpn
+from Mask_RCNN.dataset import teeth_dataset
+from train import TorchTeethDataset, collate_fn
+
+# --- 1. CÁC HÀM TÍNH TOÁN ---
+
+def compute_dice_coefficient(pred_mask, gt_mask):
+    """
+    Tính chỉ số Dice cho 2 mask nhị phân.
+    """
+    pred_mask = pred_mask > 0
+    gt_mask = gt_mask > 0
+    
+    intersection = (pred_mask & gt_mask).sum()
+    sum_area = pred_mask.sum() + gt_mask.sum()
+    
+    if sum_area == 0:
+        return 1.0  # Cả 2 đều nền đen -> Đúng
+    
+    dice = (2.0 * intersection) / sum_area
+    return dice.item() if isinstance(dice, torch.Tensor) else dice
+
+def evaluate_model(model, data_loader, device, num_classes, score_thresh=0.5):
+    model.eval()
+    dice_per_class = {i: [] for i in range(1, num_classes + 1)}
+    
+    print("Đang đánh giá model...")
+    with torch.no_grad():
+        for images, targets in tqdm(data_loader):
+            images = [img.to(device) for img in images]
+            outputs = model(images)
+            
+            for i, output in enumerate(outputs):
+                target = targets[i]
+                
+                pred_labels = output["labels"]
+                pred_scores = output["scores"]
+                pred_masks = output["masks"]
+                gt_labels = target["labels"]
+                gt_masks = target["masks"]
+                
+                # Lọc theo threshold
+                keep_idx = pred_scores >= score_thresh
+                pred_labels = pred_labels[keep_idx]
+                pred_masks = pred_masks[keep_idx]
+                
+                # Binarize masks
+                pred_masks = (pred_masks > 0.5).squeeze(1).byte()
+                gt_masks = (gt_masks > 0).byte()
+                
+                for cls_id in range(1, num_classes + 1):
+                    # Gộp mask GT
+                    gt_idx = (gt_labels == cls_id).nonzero(as_tuple=True)[0]
+                    if len(gt_idx) > 0:
+                        cls_gt_mask = torch.any(gt_masks[gt_idx], dim=0)
+                    else:
+                        cls_gt_mask = torch.zeros_like(gt_masks[0]) if len(gt_masks) > 0 else torch.zeros((512, 512), device=device)
+
+                    # Gộp mask Pred
+                    pred_idx = (pred_labels == cls_id).nonzero(as_tuple=True)[0]
+                    if len(pred_idx) > 0:
+                        cls_pred_mask = torch.any(pred_masks[pred_idx], dim=0)
+                    else:
+                        cls_pred_mask = torch.zeros_like(cls_gt_mask)
+                    
+                    dice = compute_dice_coefficient(cls_pred_mask, cls_gt_mask)
+                    
+                    # Chỉ lưu nếu có dữ liệu (tránh nhiễu từ các class ko bao giờ xuất hiện)
+                    if cls_gt_mask.sum() > 0 or cls_pred_mask.sum() > 0:
+                        dice_per_class[cls_id].append(dice)
+    return dice_per_class
+
+# --- 2. HÀM VẼ ĐỒ THỊ ---
+
+def plot_results(dice_per_class, save_dir="evaluation_results"):
+    """
+    Vẽ biểu đồ Box Plot và Bar Chart từ kết quả Dice.
+    """
+    os.makedirs(save_dir, exist_ok=True)
+    
+    # Chuẩn bị dữ liệu
+    labels = []
+    data = []
+    means = []
+    
+    sorted_keys = sorted(dice_per_class.keys())
+    
+    for cls_id in sorted_keys:
+        scores = dice_per_class[cls_id]
+        if len(scores) > 0: # Chỉ vẽ những class có dữ liệu
+            labels.append(str(cls_id))
+            data.append(scores)
+            means.append(np.mean(scores))
+    
+    if not data:
+        print("Không có dữ liệu để vẽ đồ thị.")
+        return
+
+    # --- BIỂU ĐỒ 1: BOX PLOT (Phân bố điểm số) ---
+    plt.figure(figsize=(15, 6))
+    plt.boxplot(data, labels=labels, patch_artist=True, 
+                boxprops=dict(facecolor='lightblue', color='blue'),
+                medianprops=dict(color='red'))
+    
+    plt.title('Dice Score Distribution per Tooth Class (Box Plot)')
+    plt.xlabel('Tooth Class ID')
+    plt.ylabel('Dice Coefficient')
+    plt.ylim(0, 1.1)
+    plt.grid(axis='y', linestyle='--', alpha=0.7)
+    plt.xticks(rotation=90, fontsize=8)
+    
+    # Lưu và hiển thị
+    plt.tight_layout()
+    plt.savefig(os.path.join(save_dir, "dice_boxplot.png"), dpi=300)
+    print(f"Đã lưu biểu đồ Box Plot tại: {os.path.join(save_dir, 'dice_boxplot.png')}")
+    plt.show()
+
+    # --- BIỂU ĐỒ 2: BAR CHART (Điểm trung bình) ---
+    plt.figure(figsize=(15, 6))
+    bars = plt.bar(labels, means, color='skyblue', edgecolor='navy')
+    
+    # Thêm đường trung bình tổng thể
+    overall_mean = np.mean([item for sublist in data for item in sublist])
+    plt.axhline(y=overall_mean, color='r', linestyle='--', label=f'Overall Mean: {overall_mean:.2f}')
+    
+    plt.title('Average Dice Score per Tooth Class')
+    plt.xlabel('Tooth Class ID')
+    plt.ylabel('Mean Dice Score')
+    plt.ylim(0, 1.1)
+    plt.legend()
+    plt.grid(axis='y', linestyle='--', alpha=0.5)
+    plt.xticks(rotation=90, fontsize=8)
+    
+    # Hiển thị số trên đầu cột
+    for bar in bars:
+        yval = bar.get_height()
+        plt.text(bar.get_x() + bar.get_width()/2, yval + 0.01, round(yval, 2), 
+                 ha='center', va='bottom', fontsize=7, rotation=90)
+
+    plt.tight_layout()
+    plt.savefig(os.path.join(save_dir, "dice_barchart.png"), dpi=300)
+    print(f"Đã lưu biểu đồ Bar Chart tại: {os.path.join(save_dir, 'dice_barchart.png')}")
+    plt.show()
+
+# --- 3. MAIN ---
+
+def main():
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    # ĐƯỜNG DẪN DỮ LIỆU
+    ROOT_DIR = r"D:\Documents\Machine Learning\Segmentation-Teeth-by-Simple-Mask-R-CNN\data"
+    DIR = os.path.join(ROOT_DIR, "Radiographs")
+    ANN = os.path.join(ROOT_DIR, "Segmentation/teeth_polygon_chunk_4.json")
+    WEIGHTS_PATH = "weights_training_epoch/maskrcnn_epoch54.pth" 
+
+    # Load Data
+    md = teeth_dataset.TeethDataset()
+    md.load_teeth(DIR, "train", ANN) # Đổi thành "val" hoặc "test" nếu cần
+    md.prepare()
+    
+    dataset = TorchTeethDataset(md, max_size=512)
+    data_loader = torch.utils.data.DataLoader(
+        dataset, batch_size=1, shuffle=False, collate_fn=collate_fn
+    )
+
+    # Load Model
+    num_classes = md.num_classes 
+    model = maskrcnn_resnet50_fpn(num_classes=num_classes)
+    model.load_state_dict(torch.load(WEIGHTS_PATH, map_location=device, weights_only=True))
+    model.to(device)
+
+    # Đánh giá
+    dice_results = evaluate_model(model, data_loader, device, num_classes=num_classes-1)
+
+    # Vẽ và lưu đồ thị
+    plot_results(dice_results)
+
+    # In kết quả dạng Text
+    print("\n--- TÓM TẮT KẾT QUẢ ---")
+    all_scores = [s for scores in dice_results.values() for s in scores]
+    if all_scores:
+        print(f"Overall Mean Dice: {np.mean(all_scores):.4f}")
+    else:
+        print("Không có dữ liệu hợp lệ để tính toán.")
+
+if __name__ == "__main__":
+    main()

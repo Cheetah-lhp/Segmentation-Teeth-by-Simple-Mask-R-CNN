@@ -43,5 +43,11 @@ Clone dự án về
     B2: cd Segmentation-Teeth-by-Simple-Mask-R-CNN
     B3: git lfs install --skip-smudge
     B4: git checkout main
-    B5: Vàp từng file rồi tải file data raw về 
-    B6: Tự thêm vào 
+    B5: Vào từng file rồi tải file data raw về 
+    B6: Tự thêm file data vào
+
+Cài đặt anaconda
+    - Kiểm tra danh sách environment: conda env list
+    - Tạo environment mới: conda create --name [tên environment] --clone base
+    - Kích hoạt environment: conda activate [tên environment]
+    
