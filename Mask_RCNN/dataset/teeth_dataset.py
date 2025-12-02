@@ -9,7 +9,7 @@ import skimage.draw
 class TeethDataset:
     def __init__(self):
         self.image_info = []
-        self.class_info = [{"source": "", "id": 0, "name": "BG"}]  # Background class
+        self.class_info = []
         self._image_ids = []
 
         ### Mapping cho cac label khong phai so
@@ -88,6 +88,7 @@ class TeethDataset:
 
                 objects.append({
                     "class_id": mapping[obj["title"]],
+                    "bbox": obj["bounding box"],
                     "polygons": obj["polygons"]
                 })
 
