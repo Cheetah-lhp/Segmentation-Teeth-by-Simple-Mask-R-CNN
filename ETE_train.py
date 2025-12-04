@@ -48,23 +48,21 @@ class TorchTeethDataset(Dataset):
                 labels.append(class_id)
 
         if len(masks) == 0:
-            masks = torch.zeros((0, new_h, new_w), dtype=torch.uint8)
-            boxes = torch.zeros((0, 4), dtype=torch.float32)
-            labels = torch.zeros((0,), dtype=torch.int64)
-        else:
-            masks = torch.stack(masks)
-            boxes = masks_to_boxes(masks)
-            labels = torch.tensor(labels, dtype=torch.int64)
+            return None
         
-            valid = (boxes[:, 2] > boxes[:, 0]) & (boxes[:, 3] > boxes[:, 1])
-            boxes = boxes[valid]
-            masks = masks[valid]
-            labels = labels[valid]
+        masks = torch.stack(masks)
+        boxes = masks_to_boxes(masks)
+        labels = torch.tensor(labels, dtype=torch.int64)
+        
+        valid = (boxes[:, 2] > boxes[:, 0]) & (boxes[:, 3] > boxes[:, 1])
+        boxes = boxes[valid]
+        masks = masks[valid]
+        labels = labels[valid]
 
-            if boxes.size(0) == 0:
-                boxes = torch.zeros((0, 4), dtype=torch.float32)
-                masks = torch.zeros((0, new_h, new_w), dtype=torch.uint8)
-                labels = torch.zeros((0,), dtype=torch.int64)
+        if boxes.size(0) == 0:
+            boxes = torch.zeros((0, 4), dtype=torch.float32)
+            masks = torch.zeros((0, new_h, new_w), dtype=torch.uint8)
+            labels = torch.zeros((0,), dtype=torch.int64)
         
         target = {
             "boxes": boxes.float(),
@@ -76,6 +74,9 @@ class TorchTeethDataset(Dataset):
         return image, target
 
 def collate_fn(batch):
+    batch = [b for b in batch if b is not None]
+    if len(batch) == 0:
+        return
     return tuple(zip(*batch))
 
 """ham bat buoc co trong cac bai segmentation nhieu vat the:
@@ -96,7 +97,10 @@ def train_one_epoch(model, optimizer, data_loader, device):
     model.train()
     total_loss = 0.0
 
-    for images, targets in data_loader:
+    for data in data_loader:
+        if data is None:
+            continue
+        images, targets = data
         images = [img.to(device) for img in images]
         targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
         
@@ -128,10 +132,10 @@ def main():
     #     transforms.Resize((512, 512)),
     #     transforms.ToTensor()
     # ])
-    ROOT_DIR = os.path.abspath(r"C:\Users\Admin\OneDrive\Dokumen\AIOT Lab\My Weekly Report\Teeth Segmentation with Mask R-CNN\data")
+    ROOT_DIR = os.path.abspath(r"D:\AIOT Lab\My Weekly Report\Teeth Segmentation with Mask R-CNN\data")
     sys.path.append(ROOT_DIR)
-    DIR = os.path.join(ROOT_DIR, "Radiographs")
-    ANNOTATION_DIR = os.path.join(ROOT_DIR, "Segmentation/teeth_polygon_chunk_4.json")
+    DIR = os.path.join(ROOT_DIR, "general_Radiographs")
+    ANNOTATION_DIR = os.path.join(ROOT_DIR, "general_Segmentation/teeth_polygon.json")
 
     md = teeth_dataset.TeethDataset()
     md.load_teeth(DIR, "train", ANNOTATION_DIR)
@@ -167,7 +171,7 @@ def main():
         loss = train_one_epoch(model, optimizer, train_loader, device)
         print(f"Epoch {epoch+1}/{num_epochs}, Loss: {loss:.4f}")
 
-        SAVE_DIR = r"C:\Users\Admin\OneDrive\Dokumen\AIOT Lab\My Weekly Report\Teeth Segmentation with Mask R-CNN\weights_ETE_training_epoch"
+        SAVE_DIR = r"D:\AIOT Lab\My Weekly Report\Teeth Segmentation with Mask R-CNN\weights_ETE_training_epoch"
         os.makedirs(SAVE_DIR, exist_ok=True)
         torch.save(model.state_dict(), os.path.join(SAVE_DIR, f"maskrcnn_epoch{epoch+1}.pth"))
         #free VRAM moi epoch

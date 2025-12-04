@@ -52,7 +52,8 @@ class Transformer:
                 tg['boxes'] = box
                 if 'masks' in tg:
                     mask = tg['masks']
-                    mask = F.interpolate(mask[None].float(), size=(new_h, new_w))[0].byte()
+                    with torch.no_grad():
+                        mask = F.interpolate(mask[None].float(), size=(new_h, new_w), mode='nearest')[0].byte().cpu()
                     tg['masks'] = mask
             new_targets.append(tg)
         return new_images, new_targets
