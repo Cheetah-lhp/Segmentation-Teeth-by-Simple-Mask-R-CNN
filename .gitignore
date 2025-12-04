@@ -4,6 +4,9 @@ outputs/
 runs/
 checkpoints/
 test.py
+.python-version
+pyproject.toml
+uv.lock
 *.pth
 *.pt
 *.ckpt
