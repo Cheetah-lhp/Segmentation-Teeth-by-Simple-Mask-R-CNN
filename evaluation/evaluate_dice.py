@@ -1,9 +1,13 @@
 import torch
+import sys
 import numpy as np
-import os
 import matplotlib.pyplot as plt
+from pathlib import Path
 from tqdm import tqdm
 from torchvision.models.detection import maskrcnn_resnet50_fpn
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+sys.path.append(str(PROJECT_ROOT))
 from Mask_RCNN.dataset import teeth_dataset
 from train import TorchTeethDataset, collate_fn
 
@@ -25,7 +29,7 @@ def compute_dice_coefficient(pred_mask, gt_mask):
     dice = (2.0 * intersection) / sum_area
     return dice.item() if isinstance(dice, torch.Tensor) else dice
 
-def evaluate_model(model, data_loader, device, num_classes, score_thresh=0.5):
+def evaluate_model(model, data_loader, device, num_classes, score_threshold=0.5):
     model.eval()
     dice_per_class = {i: [] for i in range(1, num_classes + 1)}
     
@@ -45,7 +49,7 @@ def evaluate_model(model, data_loader, device, num_classes, score_thresh=0.5):
                 gt_masks = target["masks"]
                 
                 # Lọc theo threshold
-                keep_idx = pred_scores >= score_thresh
+                keep_idx = pred_scores >= score_threshold
                 pred_labels = pred_labels[keep_idx]
                 pred_masks = pred_masks[keep_idx]
                 
@@ -77,11 +81,12 @@ def evaluate_model(model, data_loader, device, num_classes, score_thresh=0.5):
 
 # --- 2. HÀM VẼ ĐỒ THỊ ---
 
-def plot_results(dice_per_class, save_dir="evaluation_results"):
+def plot_results(dice_per_class, save_dir="results"):
     """
     Vẽ biểu đồ Box Plot và Bar Chart từ kết quả Dice.
     """
-    os.makedirs(save_dir, exist_ok=True)
+    save_dir = Path(save_dir)
+    save_dir.mkdir(parents=True, exist_ok=True)
     
     # Chuẩn bị dữ liệu
     labels = []
@@ -116,8 +121,8 @@ def plot_results(dice_per_class, save_dir="evaluation_results"):
     
     # Lưu và hiển thị
     plt.tight_layout()
-    plt.savefig(os.path.join(save_dir, "dice_boxplot.png"), dpi=300)
-    print(f"Đã lưu biểu đồ Box Plot tại: {os.path.join(save_dir, 'dice_boxplot.png')}")
+    plt.savefig(save_dir / "dice_boxplot.png", dpi=300)
+    print(f"Đã lưu biểu đồ Box Plot tại: {save_dir / "dice_boxplot.png"}")
     plt.show()
 
     # --- BIỂU ĐỒ 2: BAR CHART (Điểm trung bình) ---
@@ -143,8 +148,8 @@ def plot_results(dice_per_class, save_dir="evaluation_results"):
                  ha='center', va='bottom', fontsize=7, rotation=90)
 
     plt.tight_layout()
-    plt.savefig(os.path.join(save_dir, "dice_barchart.png"), dpi=300)
-    print(f"Đã lưu biểu đồ Bar Chart tại: {os.path.join(save_dir, 'dice_barchart.png')}")
+    plt.savefig(save_dir / "dice_barchart.png", dpi=300)
+    print(f"Đã lưu biểu đồ Bar Chart tại: {save_dir / "dice_barchart.png"}")
     plt.show()
 
 # --- 3. MAIN ---
@@ -153,9 +158,9 @@ def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # ĐƯỜNG DẪN DỮ LIỆU
-    ROOT_DIR = r"D:\Documents\Machine Learning\Segmentation-Teeth-by-Simple-Mask-R-CNN\data"
-    DIR = os.path.join(ROOT_DIR, "Radiographs")
-    ANN = os.path.join(ROOT_DIR, "Segmentation/teeth_polygon_chunk_4.json")
+    ROOT_DIR = PROJECT_ROOT / "data"
+    DIR = ROOT_DIR / "Radiographs"
+    ANN = ROOT_DIR / "Segmentation/teeth_polygon_chunk_4.json"
     WEIGHTS_PATH = "weights_training_epoch/maskrcnn_epoch54.pth" 
 
     # Load Data
