@@ -7,7 +7,7 @@ from Mask_RCNN.model.mask_rcnn import maskrcnn_resnet50
 from Mask_RCNN.dataset import TeethDataset, TorchTeethDataset
 import torch.optim as optim
 from PIL import Image, ImageDraw
-from utils.visualize import create_binary_smoothed_mask
+from utils.converter import create_binary_smoothed_mask
 
 def collate_fn(batch):
     batch = [b for b in batch if b is not None]
@@ -68,10 +68,10 @@ def main():
     #     transforms.Resize((512, 512)),
     #     transforms.ToTensor()
     # ])
-    ROOT_DIR = os.path.abspath(r"D:\AIOT Lab\My Weekly Report\Teeth Segmentation with Mask R-CNN\data")
+    ROOT_DIR = os.path.abspath(r"D:\Documents\Machine Learning\Segmentation-Teeth-by-Simple-Mask-R-CNN\data")
     sys.path.append(ROOT_DIR)
-    DIR = os.path.join(ROOT_DIR, "general_Radiographs")
-    ANNOTATION_DIR = os.path.join(ROOT_DIR, "general_Segmentation/teeth_polygon.json")
+    DIR = os.path.join(ROOT_DIR, "Radiographs")
+    ANNOTATION_DIR = os.path.join(ROOT_DIR, "Segmentation/teeth_polygon_chunk_4.json")
 
     md = TeethDataset()
     md.load_teeth(DIR, "train", ANNOTATION_DIR)
@@ -90,8 +90,8 @@ def main():
     #val_loader = DataLoader(val_set, batch_size=2, shuffle=False, collate_fn=collate_fn)
     
     """so label + 1 background"""
-    num_classes = md.num_classes
-    model = maskrcnn_resnet50(pretrained=True, num_classes=num_classes) 
+    num_classes = md.num_classes + 1
+    model = maskrcnn_resnet50(pretrained=False, num_classes=num_classes) 
     #tat resize trong mask rcnn de giam RAM GPU
     
     model.transformer.min_size = 512
@@ -107,7 +107,7 @@ def main():
         loss = train_one_epoch(model, optimizer, train_loader, device)
         print(f"Epoch {epoch+1}/{num_epochs}, Loss: {loss:.4f}")
 
-        SAVE_DIR = r"D:\AIOT Lab\My Weekly Report\Teeth Segmentation with Mask R-CNN\weights_ETE_training_epoch"
+        SAVE_DIR = r"D:\Documents\Machine Learning\Segmentation-Teeth-by-Simple-Mask-R-CNN\weights_ETE_training_epoch"
         os.makedirs(SAVE_DIR, exist_ok=True)
         torch.save(model.state_dict(), os.path.join(SAVE_DIR, f"maskrcnn_epoch{epoch+1}.pth"))
         #free VRAM moi epoch

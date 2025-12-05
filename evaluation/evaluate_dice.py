@@ -1,9 +1,28 @@
+import sys
+import os
+from pathlib import Path
+
+# --- BƯỚC 1: CẤU HÌNH ĐƯỜNG DẪN (PHẢI LÀM ĐẦU TIÊN) ---
+# Lấy đường dẫn tuyệt đối của file hiện tại
+FILE = Path(__file__).resolve()
+# Lấy thư mục gốc dự án (Lùi lại 2 cấp: evaluation -> Project_Root)
+PROJECT_ROOT = FILE.parent.parent
+
+# Thêm vào sys.path nếu chưa có
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.append(str(PROJECT_ROOT))
+# -----------------------------------------------------
+
+# --- BƯỚC 2: IMPORT CÁC THƯ VIỆN KHÁC ---
 import torch
 import numpy as np
-import os
 import matplotlib.pyplot as plt
 from tqdm import tqdm
-from torchvision.models.detection import maskrcnn_resnet50_fpn
+
+# --- BƯỚC 3: IMPORT MODULE CỦA DỰ ÁN (Bây giờ mới import được) ---
+# Lưu ý: Bạn nên dùng model custom của bạn thay vì torchvision nếu weights được train từ model custom
+# from torchvision.models.detection import maskrcnn_resnet50_fpn (Cái này là model có sẵn của PyTorch)
+from Mask_RCNN.model.mask_rcnn import maskrcnn_resnet50 # (Cái này là model custom của bạn)
 from Mask_RCNN.dataset import teeth_dataset
 from train import TorchTeethDataset, collate_fn
 
@@ -156,7 +175,7 @@ def main():
     ROOT_DIR = PROJECT_ROOT / "data"
     DIR = ROOT_DIR / "Radiographs"
     ANN = ROOT_DIR / "Segmentation/teeth_polygon_chunk_4.json"
-    WEIGHTS_PATH = "weights_training_epoch/maskrcnn_epoch1.pth" 
+    WEIGHTS_PATH = "weights_ETE_training_epoch/maskrcnn_epoch1.pth" 
 
     # Load Data
     md = teeth_dataset.TeethDataset()
@@ -169,13 +188,13 @@ def main():
     )
 
     # Load Model
-    num_classes = md.num_classes 
-    model = maskrcnn_resnet50_fpn(num_classes=num_classes)
+    num_classes = md.num_classes + 1
+    model = maskrcnn_resnet50(pretrained=False, num_classes=num_classes)
     model.load_state_dict(torch.load(WEIGHTS_PATH, map_location=device, weights_only=True))
     model.to(device)
 
     # Đánh giá
-    dice_results = evaluate_model(model, data_loader, device, num_classes=num_classes-1)
+    dice_results = evaluate_model(model, data_loader, device, num_classes=num_classes)
 
     # Vẽ và lưu đồ thị
     plot_results(dice_results)

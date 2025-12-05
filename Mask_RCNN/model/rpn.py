@@ -106,7 +106,7 @@ class RegionProposalNetwork(nn.Module):
                 box_loss: float (scalar)"""
     
     def forward(self, feature, image_shape, target=None):
-        if target is not None:
+        if self.training and target is not None:
             gt_box = target[0]['boxes']
 
         '''tạo các anchor boxes (khung tham chiếu) cho toàn bộ feature map.

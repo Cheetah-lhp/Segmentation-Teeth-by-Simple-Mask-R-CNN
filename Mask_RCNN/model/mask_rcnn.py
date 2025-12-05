@@ -120,8 +120,8 @@ class MaskRCNN(nn.Module):
         if self.training:
             return dict(**rpn_losses, **roi_losses)
         else:
-            result = self.transformer.postprocess(result, image_shape, ori_image_shape)
-            return result
+            result = self.transformer.postprocess(result, image_shape[0], ori_image_shape[0])
+            return [result]
         """input: image [C, H, W]
         output:  training: cac loss (int) trong rpn
                     test:   image tensor[C, H, W]

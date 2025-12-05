@@ -130,7 +130,7 @@ class RoIHeads(nn.Module):
             box, score, box_delta = proposal[keep], score[keep], box_delta[keep]
             box = self.box_coder.decode(box_delta, box)
 
-            box, score  = process_box(box, score, image_shape, self.min_size)
+            box, score  = process_box(box, score, image_shape[0], self.min_size)
             keep = nms(box, score, self.nms_thresh)[:self.num_detections] # co the thay bang batched_nms o day
             box, score = box[keep], score[keep]
             label = torch.full((len(keep),), l, dtype=keep.dtype, device=device)
