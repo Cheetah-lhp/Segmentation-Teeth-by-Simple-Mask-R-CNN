@@ -68,10 +68,9 @@ def main():
     #     transforms.Resize((512, 512)),
     #     transforms.ToTensor()
     # ])
-    ROOT_DIR = os.path.abspath(r"D:\Documents\Machine Learning\Segmentation-Teeth-by-Simple-Mask-R-CNN\data")
-    sys.path.append(ROOT_DIR)
-    DIR = os.path.join(ROOT_DIR, "Radiographs")
-    ANNOTATION_DIR = os.path.join(ROOT_DIR, "Segmentation/teeth_polygon_chunk_4.json")
+    ROOT_DIR = os.path.abspath("./")
+    DIR = os.path.join(ROOT_DIR, "data/Radiographs")
+    ANNOTATION_DIR = os.path.join(ROOT_DIR, "data/Segmentation/teeth_polygon_chunk_4.json")
 
     md = TeethDataset()
     md.load_teeth(DIR, "train", ANNOTATION_DIR)
@@ -107,7 +106,7 @@ def main():
         loss = train_one_epoch(model, optimizer, train_loader, device)
         print(f"Epoch {epoch+1}/{num_epochs}, Loss: {loss:.4f}")
 
-        SAVE_DIR = r"D:\Documents\Machine Learning\Segmentation-Teeth-by-Simple-Mask-R-CNN\weights_ETE_training_epoch"
+        SAVE_DIR = os.path.join(ROOT_DIR, "data/weights_ETE_train")
         os.makedirs(SAVE_DIR, exist_ok=True)
         torch.save(model.state_dict(), os.path.join(SAVE_DIR, f"maskrcnn_epoch{epoch+1}.pth"))
         #free VRAM moi epoch

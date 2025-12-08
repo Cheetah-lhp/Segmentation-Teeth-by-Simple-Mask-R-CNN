@@ -129,10 +129,9 @@ def main():
     #     transforms.Resize((512, 512)),
     #     transforms.ToTensor()
     # ])
-    ROOT_DIR = os.path.abspath(r"C:\Users\Admin\OneDrive\Dokumen\AIOT Lab\My Weekly Report\Teeth Segmentation with Mask R-CNN\data")
-    sys.path.append(ROOT_DIR)
-    DIR = os.path.join(ROOT_DIR, "Radiographs")
-    ANNOTATION_DIR = os.path.join(ROOT_DIR, "Segmentation/teeth_polygon_chunk_4.json")
+    ROOT_DIR = os.path.abspath("./")
+    DIR = os.path.join(ROOT_DIR, "data/Radiographs")
+    ANNOTATION_DIR = os.path.join(ROOT_DIR, "data/Segmentation/teeth_polygon_chunk_4.json")
 
     md = teeth_dataset.TeethDataset()
     md.load_teeth(DIR, "train", ANNOTATION_DIR)
@@ -151,7 +150,7 @@ def main():
     #val_loader = DataLoader(val_set, batch_size=2, shuffle=False, collate_fn=collate_fn)
     
     """so label + 1 background"""
-    num_classes = md.num_classes
+    num_classes = md.num_classes + 1
     model = maskrcnn_resnet50_fpn(num_classes=num_classes) 
     #tat resize trong mask rcnn de giam RAM GPU
     model.transform.min_size = (512,)
@@ -162,12 +161,12 @@ def main():
     model.to(device)
     optimizer = optim.Adam(model.parameters(), lr=1e-4)
 
-    num_epochs = 60
+    num_epochs = 40
     for epoch in range(num_epochs):
         loss = train_one_epoch(model, optimizer, train_loader, device)
         print(f"Epoch {epoch+1}/{num_epochs}, Loss: {loss:.4f}")
 
-        SAVE_DIR = r"C:\Users\Admin\OneDrive\Dokumen\AIOT Lab\My Weekly Report\Teeth Segmentation with Mask R-CNN\weights_training_epoch"
+        SAVE_DIR = os.path.join(ROOT_DIR, "data/weights_train")
         os.makedirs(SAVE_DIR, exist_ok=True)
         torch.save(model.state_dict(), os.path.join(SAVE_DIR, f"maskrcnn_epoch{epoch+1}.pth"))
         #free VRAM moi epoch
