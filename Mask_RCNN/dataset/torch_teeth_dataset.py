@@ -6,7 +6,7 @@ from PIL import Image
 from utils.converter import polygons2mask
 
 class TorchTeethDataset(Dataset):
-    def __init__(self, mrcnn_dataset: TeethDataset, max_size=512):
+    def __init__(self, mrcnn_dataset: TeethDataset, max_size=1333):
         self.mds = mrcnn_dataset       # matterport dataset
         self.max_size = max_size
     def __len__(self):

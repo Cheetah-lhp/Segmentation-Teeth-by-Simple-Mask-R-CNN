@@ -56,7 +56,7 @@ class MaskRCNN(nn.Module):
         out_channels = backbone.out_channels
 
         #RPN
-        anchor_sizes = (32, 64, 128, 256, 512)
+        anchor_sizes = (8, 16, 32, 64, 128)
         anchor_ratios = (0.5, 1, 2)
         num_anchors = len(anchor_sizes) * len(anchor_ratios)
         rpn_anchor_generator = AnchorGenerator(anchor_sizes, anchor_ratios)
@@ -92,9 +92,9 @@ class MaskRCNN(nn.Module):
 
         #Transformer
         self.transformer = Transformer(
-            min_size=512, max_size=512,
-            img_mean=[0, 0, 0],
-            img_std=[1, 1, 1]
+            min_size=800, max_size=1333,
+            img_mean=[0.485, 0.456, 0.406],
+            img_std=[0.229, 0.224, 0.225]
         )
 
     def forward(self, images, target=None):
@@ -183,8 +183,8 @@ class ResBackbone(nn.Module):
             if 'layer2' not in name and 'layer3' not in name and 'layer4' not in name:
                 parameter.requires_grad_(False) #freeze cac tham so khong thuoc layer2,3,4, chi hoc 2,3 ,4 
                 
-        self.body = nn.ModuleDict(d for i, d in enumerate(body.named_children()) if i < 8)
-        in_channels =2048
+        self.body = nn.ModuleDict(d for i, d in enumerate(body.named_children()) if i < 7)
+        in_channels =1024
         self.out_channels = 256
 
         self.inner_block_module = nn.Conv2d(in_channels, self.out_channels, 1) # 1x1 conv giam 2048 -> 256

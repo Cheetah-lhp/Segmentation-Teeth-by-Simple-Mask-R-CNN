@@ -76,7 +76,7 @@ def main():
     md.load_teeth(DIR, "train", ANNOTATION_DIR)
     md.prepare()
 
-    dataset = TorchTeethDataset(md, max_size=512)
+    dataset = TorchTeethDataset(md, max_size=1333)
     
     # """Chia 80/20"""
     # n = len(dataset)
@@ -91,20 +91,17 @@ def main():
     """so label + 1 background"""
     num_classes = md.num_classes + 1
     model = maskrcnn_resnet50(pretrained=False, num_classes=num_classes) 
-    #tat resize trong mask rcnn de giam RAM GPU
-    
-    model.transformer.min_size = 512
-    model.transformer.max_size = 512
-    model.transformer.img_mean = [0.0, 0.0, 0.0]
-    model.transformer.img_std = [1.0, 1.0, 1.0]
 
     model.to(device)
     optimizer = optim.Adam(model.parameters(), lr=1e-4)
+    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=20, gamma=0.5)
 
-    num_epochs = 60
+    num_epochs = 100 
     for epoch in range(num_epochs):
         loss = train_one_epoch(model, optimizer, train_loader, device)
-        print(f"Epoch {epoch+1}/{num_epochs}, Loss: {loss:.4f}")
+        scheduler.step() 
+        current_lr = optimizer.param_groups[0]['lr']
+        print(f"Epoch {epoch+1}/{num_epochs}, Loss: {loss:.4f}, LR: {current_lr}")
 
         SAVE_DIR = os.path.join(ROOT_DIR, "data/weights_ETE_train")
         os.makedirs(SAVE_DIR, exist_ok=True)
