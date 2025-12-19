@@ -117,7 +117,7 @@ def evaluate_map(model, data_loader, device, num_classes, iou_threshold=0.5):
 
 # --- 2. HÀM VẼ BIỂU ĐỒ AP & PR CURVE ---
 
-def plot_map_results(aps, pr_data, save_dir="results"):
+def plot_map_results(aps, pr_data, save_dir="evaluation/evaluation_results"):
     save_dir = Path(save_dir)
     save_dir.mkdir(parents=True, exist_ok=True)
     
@@ -183,7 +183,7 @@ def main():
     ROOT_DIR = PROJECT_ROOT / "data"
     DIR = ROOT_DIR / "Radiographs"
     ANN = ROOT_DIR / "Segmentation/teeth_polygon_chunk_4.json"
-    WEIGHTS_PATH = "weights_ETE_training_epoch/maskrcnn_epoch1.pth" 
+    WEIGHTS_PATH = "data/weights_ETE_train/maskrcnn_epoch60.pth" 
 
     # Load Data
     md = teeth_dataset.TeethDataset()

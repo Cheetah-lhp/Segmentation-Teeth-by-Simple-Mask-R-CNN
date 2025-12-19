@@ -33,7 +33,7 @@ class TeethVisualizer:
         # --- FIX: Move image tensor to the model's device ---
         image_tensor = image_tensor.to(model_device)
         _, H, W = image_tensor.shape
-        
+        print(f"Input Max: {image_tensor.max().item()}, Min: {image_tensor.min().item()}")
         # The model expects a list of tensors (batch of size 1)
         images = [image_tensor]
 
@@ -62,7 +62,12 @@ class TeethVisualizer:
 
             else:
                 pred_masks_raw = pred['masks'].cpu().numpy()
-                pred_masks = (pred_masks_raw.squeeze(1) > 0.5).astype(np.uint8)
+                if len(pred_masks_raw.shape) == 4:
+                    # Trường hợp [N, 1, H, W] -> [N, H, W]
+                    pred_masks = (pred_masks_raw.squeeze(1) > 0.5).astype(np.uint8)
+                else:
+                    # Trường hợp [N, H, W]  -> Giữ nguyên
+                    pred_masks = (pred_masks_raw > 0.5).astype(np.uint8)
                 pred_boxes = pred['boxes'].cpu().numpy()
                 pred_labels = pred['labels'].cpu().numpy()
                 pred_scores = pred['scores'].cpu().numpy()
@@ -193,10 +198,13 @@ if __name__ == "__main__":
     num_classes = md.num_classes + 1
     # WEIGHTS_PATH = os.path.join(ROOT_DIR, "data/weights_ETE_train/maskrcnn_epoch40.pth")
     # model = maskrcnn_resnet50(pretrained=False, num_classes=num_classes)
-    WEIGHTS_PATH = os.path.join(ROOT_DIR, "data/weights_train/maskrcnn_epoch40.pth")
-    model = maskrcnn_resnet50_fpn(pretrained=False, num_classes=num_classes)
+    WEIGHTS_PATH = os.path.join(ROOT_DIR, "data/weights_ETE_train/maskrcnn_epoch60.pth")
+    model = maskrcnn_resnet50(pretrained=False, num_classes=num_classes)
+
     model.load_state_dict(torch.load(WEIGHTS_PATH, map_location=device, weights_only=True))
     model.to(device)
     
     visualizer = TeethVisualizer(dataset=dataset, model=model)
-    visualizer.visualize_masks_and_boxes(idx=0, source='pred', tooth_index=None)
+    visualizer.visualize_masks_and_boxes(idx=2, source='pred', tooth_index=None, score_threshold=0.5)
+
+    

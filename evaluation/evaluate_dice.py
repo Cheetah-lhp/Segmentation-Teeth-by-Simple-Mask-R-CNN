@@ -44,7 +44,7 @@ def compute_dice_coefficient(pred_mask, gt_mask):
     dice = (2.0 * intersection) / sum_area
     return dice.item() if isinstance(dice, torch.Tensor) else dice
 
-def evaluate_model(model, data_loader, device, num_classes, score_thresh=0.5):
+def evaluate_model(model, data_loader, device, num_classes, score_thresh=0.01):
     model.eval()
     dice_per_class = {i: [] for i in range(1, num_classes + 1)}
     
@@ -96,7 +96,7 @@ def evaluate_model(model, data_loader, device, num_classes, score_thresh=0.5):
 
 # --- 2. HÀM VẼ ĐỒ THỊ ---
 
-def plot_results(dice_per_class, save_dir="evaluation_results"):
+def plot_results(dice_per_class, save_dir="evaluation/evaluation_results"):
     """
     Vẽ biểu đồ Box Plot và Bar Chart từ kết quả Dice.
     """
@@ -175,7 +175,7 @@ def main():
     ROOT_DIR = PROJECT_ROOT / "data"
     DIR = ROOT_DIR / "Radiographs"
     ANN = ROOT_DIR / "Segmentation/teeth_polygon_chunk_4.json"
-    WEIGHTS_PATH = "weights_ETE_training_epoch/maskrcnn_epoch1.pth" 
+    WEIGHTS_PATH = "data/weights_ETE_train/maskrcnn_epoch60.pth" 
 
     # Load Data
     md = teeth_dataset.TeethDataset()

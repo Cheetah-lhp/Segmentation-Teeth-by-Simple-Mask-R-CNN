@@ -56,7 +56,7 @@ class MaskRCNN(nn.Module):
         out_channels = backbone.out_channels
 
         #RPN
-        anchor_sizes = (128, 256, 512)
+        anchor_sizes = (32, 64, 128, 256, 512)
         anchor_ratios = (0.5, 1, 2)
         num_anchors = len(anchor_sizes) * len(anchor_ratios)
         rpn_anchor_generator = AnchorGenerator(anchor_sizes, anchor_ratios)
@@ -92,9 +92,9 @@ class MaskRCNN(nn.Module):
 
         #Transformer
         self.transformer = Transformer(
-            min_size=800, max_size=1333,
-            img_mean=[0.485, 0.456, 0.406],
-            img_std=[0.229, 0.224, 0.225]
+            min_size=512, max_size=512,
+            img_mean=[0, 0, 0],
+            img_std=[1, 1, 1]
         )
 
     def forward(self, images, target=None):
@@ -115,7 +115,15 @@ class MaskRCNN(nn.Module):
         # print("Num proposals:", len(proposal[0]))
         # print("Sample proposals:", proposal[0][:5])
 
+        if not self.training:
+            print(f"RPN generated {len(proposal)} proposals")
+
         result, roi_losses = self.head(feature, proposal, image_shape, target)
+
+        if not self.training:
+            print(f"RoI Head detected {len(result['boxes'])} objects")
+            if len(result['boxes']) > 0:
+                print(f"Max Score: {result['scores'].max().item()}")
         
         if self.training:
             return dict(**rpn_losses, **roi_losses)
