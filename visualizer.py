@@ -171,7 +171,10 @@ class TeethVisualizer:
                 ax.add_patch(rect)
                 
                 # --- C. Label Text ---
-                label_name = f"teeth_{label}"
+                if label > 0 and (label - 1) < len(self.dataset.mds.class_names):
+                    label_name = self.dataset.mds.class_names[label - 1]
+                else:
+                    label_name = f"Unknown_{label}"
                 score_text = f" ({scores[i]:.2f})" if scores is not None else ""
                 
                 ax.text(
@@ -184,7 +187,7 @@ if __name__ == "__main__":
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     ROOT_DIR = os.path.abspath("./")
     DIR = os.path.join(ROOT_DIR, "data/Radiographs")
-    ANNOTATION_DIR = os.path.join(ROOT_DIR, "data/Segmentation/teeth_polygon_chunk_4.json")
+    ANNOTATION_DIR = os.path.join(ROOT_DIR, "data/Segmentation/teeth_polygon.json")
     md = TeethDataset()
     md.load_teeth(DIR, "train", ANNOTATION_DIR)
     md.prepare()
@@ -193,7 +196,7 @@ if __name__ == "__main__":
     num_classes = md.num_classes + 1
     # WEIGHTS_PATH = os.path.join(ROOT_DIR, "data/weights_ETE_train/maskrcnn_epoch40.pth")
     # model = maskrcnn_resnet50(pretrained=False, num_classes=num_classes)
-    WEIGHTS_PATH = os.path.join(ROOT_DIR, "data/weights_ETE_train/maskrcnn_epoch40.pth")
+    WEIGHTS_PATH = os.path.join(ROOT_DIR, "data/weights_ETE_train/maskrcnn_epoch100.pth")
     model = maskrcnn_resnet50(pretrained=False, num_classes=num_classes)
      
     model.load_state_dict(torch.load(WEIGHTS_PATH, map_location=device, weights_only=True))
@@ -205,6 +208,6 @@ if __name__ == "__main__":
     #idx: index của ảnh trong dataset
     #tooth_index: index của răng muốn hiển thị (bắt đầu từ 0). None để hiển thị tất cả răng
     #score_threshold: ngưỡng điểm số để lọc dự đoán (chỉ áp dụng khi source='pred')
-    visualizer.visualize_masks_and_boxes(idx=1, source='pred', tooth_index=None, score_threshold=0.7)
+    visualizer.visualize_masks_and_boxes(idx=900, source='pred', tooth_index=None, score_threshold=0.8)
 
     

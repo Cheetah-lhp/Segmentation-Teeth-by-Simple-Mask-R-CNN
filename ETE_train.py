@@ -10,9 +10,10 @@ from PIL import Image, ImageDraw
 from utils.converter import create_binary_smoothed_mask
 
 def collate_fn(batch):
-    batch = [b for b in batch if b is not None]
+    # Lọc bỏ những sample mà target không có boxes (răng)
+    batch = [b for b in batch if b is not None and b[1]["boxes"].numel() > 0]
     if len(batch) == 0:
-        return
+        return None # Trả về None nếu cả batch toàn ảnh trống
     return tuple(zip(*batch))
 
 """ham bat buoc co trong cac bai segmentation nhieu vat the:
@@ -70,7 +71,7 @@ def main():
     # ])
     ROOT_DIR = os.path.abspath("./")
     DIR = os.path.join(ROOT_DIR, "data/Radiographs")
-    ANNOTATION_DIR = os.path.join(ROOT_DIR, "data/Segmentation/teeth_polygon_chunk_4.json")
+    ANNOTATION_DIR = os.path.join(ROOT_DIR, "data/Segmentation/teeth_polygon.json")
 
     md = TeethDataset()
     md.load_teeth(DIR, "train", ANNOTATION_DIR)

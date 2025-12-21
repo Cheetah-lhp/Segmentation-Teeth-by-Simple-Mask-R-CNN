@@ -11,10 +11,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 from tqdm import tqdm
 from torchvision.ops import box_iou
-
 from Mask_RCNN.model.mask_rcnn import maskrcnn_resnet50
 from Mask_RCNN.dataset import teeth_dataset
-from train import TorchTeethDataset, collate_fn
+from Mask_RCNN.dataset.torch_teeth_dataset import TorchTeethDataset
+from ETE_train import collate_fn
 
 
 # --- 1. CÁC HÀM TÍNH TOÁN mAP ---
@@ -77,7 +77,9 @@ def evaluate_map(model, data_loader, device, num_classes, iou_threshold=0.5):
     
     print("Đang thu thập dữ liệu để tính mAP...")
     with torch.no_grad():
-        for images, targets in tqdm(data_loader):
+        for batch in tqdm(data_loader): 
+            if batch is None: continue 
+            images, targets = batch
             images = [img.to(device) for img in images]
             outputs = model(images)
             
@@ -99,7 +101,7 @@ def evaluate_map(model, data_loader, device, num_classes, iou_threshold=0.5):
     aps = []
     pr_data = {} # Dictionary lưu p, r cho từng class
     
-    print("\n--- KẾT QUẢ AP TỪNG CLASS ---")
+    # print("\n--- KẾT QUẢ AP TỪNG CLASS ---")
     for cls_id in range(1, num_classes + 1):
         p_boxes = torch.cat(class_data[cls_id]['pred_boxes']) if class_data[cls_id]['pred_boxes'] else torch.tensor([])
         p_scores = torch.cat(class_data[cls_id]['pred_scores']) if class_data[cls_id]['pred_scores'] else torch.tensor([])
@@ -110,27 +112,40 @@ def evaluate_map(model, data_loader, device, num_classes, iou_threshold=0.5):
         aps.append(ap)
         pr_data[cls_id] = {"precision": prec, "recall": rec, "ap": ap}
         
-        print(f"Class {cls_id}: AP@{iou_threshold} = {ap:.4f}")
+    #     print(f"Class {cls_id}: AP@{iou_threshold} = {ap:.4f}")
         
     mAP = np.mean(aps)
     return mAP, aps, pr_data
 
 # --- 2. HÀM VẼ BIỂU ĐỒ AP & PR CURVE ---
 
-def plot_map_results(aps, pr_data, save_dir="evaluation/evaluation_results"):
+def plot_map_results(aps_input, pr_data, class_names, save_dir="evaluation/evaluation_results"):
     save_dir = Path(save_dir)
     save_dir.mkdir(parents=True, exist_ok=True)
     
-    # --- BIỂU ĐỒ 1: BAR CHART (AP per Class) ---
-    labels = [str(i+1) for i in range(len(aps))]
+    mAP = np.mean(aps_input)
+    
+    # --- BIỂU ĐỒ 1: BAR CHART (Lọc để vẽ) ---
+    labels = []
+    aps = []
+    for i, ap in enumerate(aps_input):
+        if ap > 0:
+            name = class_names[i] 
+            labels.append(name)
+            aps.append(ap)
+
+    if not aps:
+        print("Không có class nào có AP > 0 để vẽ Bar Chart.")
+        return
+    
     plt.figure(figsize=(15, 6))
-    bars = plt.bar(labels, aps, color='lightgreen', edgecolor='green')
+    bars = plt.bar(labels, aps, color='skyblue', edgecolor='navy')
     
-    mean_ap = np.mean(aps)
-    plt.axhline(y=mean_ap, color='r', linestyle='--', label=f'mAP: {mean_ap:.4f}')
+    # Vẽ đường kẻ đỏ dựa trên mAP thực tế (ví dụ: 0.4632)
+    plt.axhline(y=mAP, color='r', linestyle='--', label=f'Overall mAP: {mAP:.4f}')
     
-    plt.title('Average Precision (AP) per Class')
-    plt.xlabel('Tooth Class ID')
+    plt.title('Average Precision (AP) per Class (Only AP > 0)')
+    plt.xlabel('Tooth Class')
     plt.ylabel('AP Score')
     plt.ylim(0, 1.1)
     plt.legend()
@@ -150,6 +165,7 @@ def plot_map_results(aps, pr_data, save_dir="evaluation/evaluation_results"):
     # --- BIỂU ĐỒ 2: PRECISION-RECALL CURVE ---
     plt.figure(figsize=(12, 8))
     
+    # Tạo màu sắc đa dạng cho các đường cong
     colors = plt.cm.jet(np.linspace(0, 1, len(pr_data)))
     
     for idx, (cls_id, data) in enumerate(pr_data.items()):
@@ -158,9 +174,15 @@ def plot_map_results(aps, pr_data, save_dir="evaluation/evaluation_results"):
         ap = data["ap"]
         
         if ap > 0:
-            plt.plot(rec, prec, lw=1.5, label=f'Class {cls_id} (AP={ap:.2f})', color=colors[idx], alpha=0.8)
+            # Lấy tên răng từ class_names (cls_id bắt đầu từ 1)
+            if (cls_id - 1) < len(class_names):
+                name = class_names[cls_id - 1]
+            else:
+                name = f"ID_{cls_id}"
+                
+            plt.plot(rec, prec, lw=1.5, label=f'{name} (AP={ap:.2f})', color=colors[idx], alpha=0.8)
     
-    plt.title('Precision-Recall Curve per Class')
+    plt.title('Precision-Recall Curve per Class (Only AP > 0)')
     plt.xlabel('Recall')
     plt.ylabel('Precision')
     plt.xlim([0.0, 1.0])
@@ -182,8 +204,8 @@ def main():
     # ĐƯỜNG DẪN dỮ LIỆU
     ROOT_DIR = PROJECT_ROOT / "data"
     DIR = ROOT_DIR / "Radiographs"
-    ANN = ROOT_DIR / "Segmentation/teeth_polygon_chunk_4.json"
-    WEIGHTS_PATH = "data/weights_ETE_train/maskrcnn_epoch60.pth" 
+    ANN = ROOT_DIR / "Segmentation/teeth_polygon.json"
+    WEIGHTS_PATH = "data/weights_ETE_train/maskrcnn_epoch100.pth" 
 
     # Load Data
     md = teeth_dataset.TeethDataset()
@@ -191,9 +213,7 @@ def main():
     md.prepare()
     
     dataset = TorchTeethDataset(md, max_size=512)
-    data_loader = torch.utils.data.DataLoader(
-        dataset, batch_size=1, shuffle=False, collate_fn=collate_fn
-    )
+    data_loader = torch.utils.data.DataLoader(dataset, batch_size=1, shuffle=False, collate_fn=collate_fn)
 
     # Load Model
     num_classes = md.num_classes + 1
@@ -205,10 +225,10 @@ def main():
     mAP, aps, pr_data = evaluate_map(model, data_loader, device, num_classes=num_classes-1, iou_threshold=0.5)
     
     # Vẽ đồ thị
-    plot_map_results(aps, pr_data)
+    plot_map_results(aps, pr_data, md.class_names)
 
     # In kết quả dạng Text
-    print(f"\n=== TỔNG KẾT ===")
+    print(f"\n=== KẾT QUẢ ===")
     print(f"mAP: {mAP:.4f}")
 
 if __name__ == "__main__":

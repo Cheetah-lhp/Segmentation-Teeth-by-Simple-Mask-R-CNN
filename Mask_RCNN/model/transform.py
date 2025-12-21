@@ -52,9 +52,13 @@ class Transformer:
                 tg['boxes'] = box
                 if 'masks' in tg:
                     mask = tg['masks']
-                    with torch.no_grad():
-                        mask = F.interpolate(mask[None].float(), size=(new_h, new_w), mode='nearest')[0].byte().cpu()
-                    tg['masks'] = mask
+                    if mask.numel() > 0: # Chỉ resize nếu có ít nhất 1 mask
+                        with torch.no_grad():
+                            mask = F.interpolate(mask[None].float(), size=(new_h, new_w), mode='nearest')[0].byte().cpu()
+                    else:
+                        # Nếu không có mask, tạo tensor rỗng với kích thước mới
+                        mask = torch.zeros((0, new_h, new_w), dtype=torch.uint8).cpu()
+                tg['masks'] = mask
             new_targets.append(tg)
         return new_images, new_targets
     """output: image tensor[C, H, W]
