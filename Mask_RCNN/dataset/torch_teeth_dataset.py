@@ -4,6 +4,7 @@ from torch.utils.data import Dataset
 from Mask_RCNN.dataset.teeth_dataset import TeethDataset
 from PIL import Image
 from utils.converter import polygons2mask
+import cv2
 
 class TorchTeethDataset(Dataset):
     def __init__(self, mrcnn_dataset: TeethDataset, max_size=1333):
@@ -17,6 +18,21 @@ class TorchTeethDataset(Dataset):
 
         # Load image
         image = Image.open(info["path"]).convert("RGB") # np.array(image).shape === (H, W, C) với C = 3 (chanel RGB)
+        img_np = np.array(image)
+        # Chuyển sang hệ màu LAB để xử lý kênh độ sáng (L) mà không làm thay đổi màu sắc
+        lab = cv2.cvtColor(img_np, cv2.COLOR_RGB2LAB)
+        
+        # Khởi tạo CLAHE (Cân bằng biểu đồ xám thích nghi)
+        # clipLimit: Ngưỡng giới hạn độ tương phản (thường từ 2.0 - 4.0)
+        # tileGridSize: Chia ảnh thành các ô nhỏ để xử lý cục bộ (8x8 là chuẩn)
+        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+        
+        # Áp dụng CLAHE lên kênh L (Lightness)
+        lab[:, :, 0] = clahe.apply(lab[:, :, 0])
+        
+        # Chuyển ngược lại hệ màu RGB
+        img_np = cv2.cvtColor(lab, cv2.COLOR_LAB2RGB)
+        image = Image.fromarray(img_np)
         w, h = image.size
         scale = self.max_size/max(w, h)
         new_w, new_h = int(w*scale), int(h*scale)

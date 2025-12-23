@@ -11,6 +11,7 @@ from .rpn import RPNHead, RegionProposalNetwork
 from .pooler import RoIAlign
 from .roi_heads import RoIHeads
 from .transform import Transformer
+from collections import OrderedDict 
 
 
 class MaskRCNN(nn.Module):
@@ -56,9 +57,9 @@ class MaskRCNN(nn.Module):
         out_channels = backbone.out_channels
 
         #RPN
-        anchor_sizes = (8, 16, 32, 64, 128)
+        anchor_sizes = (16, 32, 64, 128, 256)
         anchor_ratios = (0.5, 1, 2)
-        num_anchors = len(anchor_sizes) * len(anchor_ratios)
+        num_anchors = len(anchor_ratios)
         rpn_anchor_generator = AnchorGenerator(anchor_sizes, anchor_ratios)
         rpn_head = RPNHead(out_channels, num_anchors)
 
@@ -115,15 +116,8 @@ class MaskRCNN(nn.Module):
         # print("Num proposals:", len(proposal[0]))
         # print("Sample proposals:", proposal[0][:5])
 
-        if not self.training:
-            print(f"RPN generated {len(proposal)} proposals")
 
         result, roi_losses = self.head(feature, proposal, image_shape, target)
-
-        if not self.training:
-            print(f"RoI Head detected {len(result['boxes'])} objects")
-            if len(result['boxes']) > 0:
-                print(f"Max Score: {result['scores'].max().item()}")
         
         if self.training:
             return dict(**rpn_losses, **roi_losses)
@@ -181,25 +175,43 @@ class ResBackbone(nn.Module):
 
         for name, parameter in body.named_parameters():
             if 'layer2' not in name and 'layer3' not in name and 'layer4' not in name:
-                parameter.requires_grad_(False) #freeze cac tham so khong thuoc layer2,3,4, chi hoc 2,3 ,4 
-                
-        self.body = nn.ModuleDict(d for i, d in enumerate(body.named_children()) if i < 7)
-        in_channels =1024
+                parameter.requires_grad_(False)
+
+        self.stage0 = nn.Sequential(body.conv1, body.bn1, body.relu, body.maxpool, body.layer1) # C2
+        self.stage1 = body.layer2 # C3
+        self.stage2 = body.layer3 # C4
+        self.stage3 = body.layer4 # C5
+
         self.out_channels = 256
+        # Lateral layers
+        self.inner2 = nn.Conv2d(256,  256, 1)
+        self.inner3 = nn.Conv2d(512,  256, 1)
+        self.inner4 = nn.Conv2d(1024, 256, 1)
+        self.inner5 = nn.Conv2d(2048, 256, 1)
+        # Smooth layers
+        self.layer2 = nn.Conv2d(256, 256, 3, 1, 1)
+        self.layer3 = nn.Conv2d(256, 256, 3, 1, 1)
+        self.layer4 = nn.Conv2d(256, 256, 3, 1, 1)
+        self.layer5 = nn.Conv2d(256, 256, 3, 1, 1)
 
-        self.inner_block_module = nn.Conv2d(in_channels, self.out_channels, 1) # 1x1 conv giam 2048 -> 256
-        self.layer_block_module = nn.Conv2d(self.out_channels, self.out_channels, 3, 1, 1) #3x3 conv giu nguyen 256, padding =1
-        for m in self.children():
-            if isinstance(m, nn.Conv2d):
-                nn.init.kaiming_uniform_(m.weight, a=1)
-                nn.init.constant_(m.bias, 0)
+    def forward(self, x):
+        c2 = self.stage0(x)
+        c3 = self.stage1(c2)
+        c4 = self.stage2(c3)
+        c5 = self.stage3(c4)
 
-    def forward(self, x): #input x tensor[N, 3, H, W]
-        for module in self.body.values():
-            x = module(x)
-        x = self.inner_block_module(x)
-        x = self.layer_block_module(x)
-        return x
+        p5 = self.inner5(c5)
+        p4 = F.interpolate(p5, size=c4.shape[-2:], mode='nearest') + self.inner4(c4)
+        p3 = F.interpolate(p4, size=c3.shape[-2:], mode='nearest') + self.inner3(c3)
+        p2 = F.interpolate(p3, size=c2.shape[-2:], mode='nearest') + self.inner2(c2)
+
+        out = OrderedDict()
+        out["0"] = self.layer2(p2) # stride 4
+        out["1"] = self.layer3(p3) # stride 8
+        out["2"] = self.layer4(p4) # stride 16
+        out["3"] = self.layer5(p5) # stride 32
+        out["4"] = F.max_pool2d(out["3"], 1, 2, 0) # stride 64 (P6)
+        return out
     """output: tensor[N, out_channels, h_out, w_out] (thuong co dinh voi resnet pretrained: h_out = h/32, w_out = w/32)"""
 
 def maskrcnn_resnet50(pretrained, num_classes, pretrained_backbone=True):

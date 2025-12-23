@@ -124,18 +124,31 @@ class AnchorGenerator:
                 N = H*W so cell tren feature map
                 A = ratios * sizes so anchor tren moi cell"""
     
-    def __call__(self, feature, image_size):
-        dtype, device = feature.dtype, feature.device
-        grid_size = tuple(feature.shape[-2:]) # Lấy kích thước của feature map
-        # Lấy ảnh đầu tiên (hoặc batch) để tính stride
-        h, w = image_size[0] if isinstance(image_size, (list, tuple)) else image_size
-        h, w = int(h), int(w)
-        image_size = (h, w)
-
-        grid_size = tuple(int(x) for x in grid_size)
-        stride = tuple(i//g for i, g in zip(image_size, grid_size)) # Tính stride dựa trên kích thước ảnh và kích thước feature map
-
-        self.set_cell_anchor(dtype, device) # Thiết lập anchor cho mỗi ô trên feature map
-        anchor = self.cached_grid_anchor(grid_size, stride) # Lấy anchor từ cache hoặc tạo mới nếu chưa có
-        return anchor
+    def __call__(self, features, image_size):
+        dtype, device = next(iter(features.values())).dtype, next(iter(features.values())).device
+        h, w = image_size[0] if isinstance(image_size[0], (list, tuple, torch.Tensor)) else image_size
+        
+        anchors_over_all_layers = []
+        for i, (name, feature) in enumerate(features.items()):
+            grid_size = feature.shape[-2:]
+            stride = (h // grid_size[0], w // grid_size[1])
+            
+            size = self.sizes[i]
+            ratios = torch.tensor(self.ratios, dtype=dtype, device=device)
+            h_ratios = torch.sqrt(ratios)
+            w_ratios = 1 / h_ratios
+            hs = size * h_ratios
+            ws = size * w_ratios
+            cell_anchor = torch.stack([-ws, -hs, ws, hs], dim=1) / 2
+            
+            shift_x = torch.arange(0, grid_size[1], dtype=dtype, device=device) * stride[1]
+            shift_y = torch.arange(0, grid_size[0], dtype=dtype, device=device) * stride[0]
+            y, x = torch.meshgrid(shift_y, shift_x, indexing='ij')
+            x, y = x.reshape(-1), y.reshape(-1)
+            shifts = torch.stack((x, y, x, y), dim=1).reshape(-1, 1, 4)
+            
+            anchor_level = (shifts + cell_anchor).reshape(-1, 4)
+            anchors_over_all_layers.append(anchor_level)
+            
+        return torch.cat(anchors_over_all_layers, dim=0)
     

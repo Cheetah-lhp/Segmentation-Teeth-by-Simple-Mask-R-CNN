@@ -13,7 +13,15 @@ def fastrcnn_loss(class_logits, box_regression, label, regression_targets):
     # print("box_regression stats:", box_regression.min().item(), box_regression.max().item())
     # print("regression_targets stats:", regression_targets.min().item(), regression_targets.max().item())
 
-    classification_loss = F.cross_entropy(class_logits, label)
+    num_classes = class_logits.shape[1] 
+    device = class_logits.device
+    weights = torch.ones(num_classes).to(device)
+    
+    rare_ids = [1, 16, 23, 24, 25, 26] + list(range(33, 53))
+    valid_rare_ids = [i for i in rare_ids if i < num_classes]
+    weights[valid_rare_ids] = 5.0 # Phạt nặng gấp 5 lần nếu sai răng hiếm
+
+    classification_loss = F.cross_entropy(class_logits, label, weight=weights)
 
     pos_idx = torch.where(label > 0)[0]
     if len(pos_idx) == 0:
@@ -33,6 +41,20 @@ def fastrcnn_loss(class_logits, box_regression, label, regression_targets):
 """output:  classification_loss: float (scalar)
             box_reg_loss: float (scalar)"""
 
+def dice_loss(inputs, targets, smooth=1.0):
+    """
+    inputs: Logits từ model (chưa qua sigmoid)
+    targets: Ground truth mask (0 hoặc 1)
+    """
+    inputs = torch.sigmoid(inputs) # Chuyển Logits về xác suất [0, 1]
+    inputs = inputs.view(-1)
+    targets = targets.view(-1)
+    
+    intersection = (inputs * targets).sum()                            
+    dice = (2.*intersection + smooth) / (inputs.sum() + targets.sum() + smooth)  
+    
+    return 1 - dice
+
 def maskrcnn_loss(mask_logit, proposal, matched_idx, label, gt_mask):
     matched_idx = matched_idx[:, None].to(proposal)
     roi = torch.cat((matched_idx, proposal), dim=1)
@@ -40,10 +62,14 @@ def maskrcnn_loss(mask_logit, proposal, matched_idx, label, gt_mask):
     M = mask_logit.shape[-1]
     gt_mask = gt_mask[:, None].to(roi)
     mask_target = roi_align(gt_mask, roi, 1., M, M, -1)[:, 0]
-
+    
     idx = torch.arange(label.shape[0], device=label.device)
-    mask_loss = F.binary_cross_entropy_with_logits(mask_logit[idx, label], mask_target)
-    return mask_loss
+
+    relevant_logits = mask_logit[idx, label]
+    bce_loss = F.binary_cross_entropy_with_logits(relevant_logits, mask_target)
+    d_loss = dice_loss(relevant_logits, mask_target)
+
+    return bce_loss + d_loss
 """output: mask_loss: float (scalar)"""
 
 class RoIHeads(nn.Module):

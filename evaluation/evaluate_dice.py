@@ -15,6 +15,7 @@ from Mask_RCNN.model.mask_rcnn import maskrcnn_resnet50
 from Mask_RCNN.dataset import teeth_dataset
 from Mask_RCNN.dataset.torch_teeth_dataset import TorchTeethDataset
 from ETE_train import collate_fn
+from torchvision.models.detection import maskrcnn_resnet50_fpn
 
 # --- 1. CÁC HÀM TÍNH TOÁN ---
 
@@ -172,20 +173,21 @@ def main():
     ROOT_DIR = PROJECT_ROOT / "data"
     DIR = ROOT_DIR / "Radiographs"
     ANN = ROOT_DIR / "Segmentation/teeth_polygon.json"
-    WEIGHTS_PATH = "data/weights_ETE_train/maskrcnn_epoch28.pth" 
+    WEIGHTS_PATH = "data/weights_ETE_train/maskrcnn_epoch67.pth" 
 
     # Load Data
     md = teeth_dataset.TeethDataset()
     md.load_teeth(DIR, "train", ANN) 
     md.prepare()
     
-    dataset = TorchTeethDataset(md, max_size=512)
+    dataset = TorchTeethDataset(md, max_size=1333)
     data_loader = torch.utils.data.DataLoader(
         dataset, batch_size=1, shuffle=False, collate_fn=collate_fn
     )
 
     # Load Model
     num_classes = md.num_classes + 1
+    # model = maskrcnn_resnet50_fpn(pretrained=False, num_classes=num_classes)
     model = maskrcnn_resnet50(pretrained=False, num_classes=num_classes)
     model.load_state_dict(torch.load(WEIGHTS_PATH, map_location=device, weights_only=True))
     model.to(device)
@@ -206,3 +208,5 @@ def main():
     
 if __name__ == "__main__":
     main()
+
+    

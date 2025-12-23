@@ -105,27 +105,27 @@ class RegionProposalNetwork(nn.Module):
     """output:  objectness_loss: float (scalar)
                 box_loss: float (scalar)"""
     
-    def forward(self, feature, image_shape, target=None):
-        if self.training and target is not None:
-            gt_box = target[0]['boxes']
+    def forward(self, features, image_shape, target=None):
+        gt_box = target[0]['boxes'] if self.training else None
+        anchor = self.anchor_generator(features, image_shape)
 
-        '''tạo các anchor boxes (khung tham chiếu) cho toàn bộ feature map.
-            anchor: [N, 4]  (tọa độ [x1, y1, x2, y2] trên ảnh gốc)'''
-        anchor = self.anchor_generator(feature, image_shape)
-
-        '''objectness: [B, num_anchors, H, W]
-           pred_bbox_delta: [B, 4*num_anchors, H, W]'''
-        objectness, pred_bbox_delta = self.head(feature)
-        '''[B, num_anchors, H, W] → [B, H, W, num_anchors]→ [B * H * W * num_anchors]'''
-        objectness = objectness.permute(0, 2, 3, 1).flatten()
-        '''→ [B * H * W * num_anchors, 4] Mỗi hàng là (dx, dy, dw, dh) của một anchor.'''
-        pred_bbox_delta = pred_bbox_delta.permute(0, 2, 3, 1).reshape(-1, 4)
+        all_objectness = []
+        all_pred_bbox_delta = []
+        for feature in features.values():
+            logits, bbox_reg = self.head(feature)
+            all_objectness.append(logits.permute(0, 2, 3, 1).flatten())
+            all_pred_bbox_delta.append(bbox_reg.permute(0, 2, 3, 1).reshape(-1, 4))
+            
+        objectness = torch.cat(all_objectness, dim=0)
+        pred_bbox_delta = torch.cat(all_pred_bbox_delta, dim=0)
 
         proposal = self.create_proposal(anchor, objectness.detach(), pred_bbox_delta.detach(), image_shape[0])
-        if self.training:
-            objectness_loss, box_loss = self.compute_loss(objectness, pred_bbox_delta, gt_box, anchor)
-            return proposal, dict(rpn_objectness_loss=objectness_loss, rpn_box_loss=box_loss)
         
-        return proposal, {}
+        losses = {}
+        if self.training:
+            obj_loss, b_loss = self.compute_loss(objectness, pred_bbox_delta, gt_box, anchor)
+            losses = {"rpn_objectness_loss": obj_loss, "rpn_box_loss": b_loss}
+        
+        return proposal, losses
     """output:  proposal: tensor[M, 4]
                 dict: empty khi test, tra ve cac loss (float) khi train"""
