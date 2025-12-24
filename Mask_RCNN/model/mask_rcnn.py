@@ -26,7 +26,7 @@ class MaskRCNN(nn.Module):
                  box_fg_iou_thresh=0.5, box_bg_iou_thresh=0.5,
                  box_num_samples=512, box_positive_fraction=0.25,
                  box_reg_weights=(10., 10., 5., 5.),
-                 box_score_thresh=0.1, box_nms_thresh=0.6, box_num_detections=100):
+                 box_score_thresh=0.3, box_nms_thresh=0.6, box_num_detections=100):
         """input class MaskRCNN:
             Tham so trong RPN
                 + backbone: duoc dinh nghia truoc trong nn.Module (backbone duoc su dung tinh feature trong model)

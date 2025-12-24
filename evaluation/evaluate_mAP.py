@@ -158,9 +158,9 @@ def plot_map_results(aps_input, pr_data, class_names, save_dir="evaluation/evalu
                  ha='center', va='bottom', fontsize=7, rotation=90)
                  
     plt.tight_layout()
-    plt.savefig(save_dir / "map_barchart.png", dpi=300)
-    print(f"Đã lưu biểu đồ mAP tại: {save_dir / 'map_barchart.png'}")
-    plt.show()
+    plt.savefig(save_dir / "mAP_barchart.png", dpi=300)
+    print(f"Đã lưu biểu đồ mAP tại: {save_dir / 'mAP_barchart.png'}")
+    plt.close()
 
     # --- BIỂU ĐỒ 2: PRECISION-RECALL CURVE ---
     plt.figure(figsize=(12, 8))
@@ -194,7 +194,7 @@ def plot_map_results(aps_input, pr_data, class_names, save_dir="evaluation/evalu
     plt.tight_layout()
     plt.savefig(save_dir / "pr_curve.png", dpi=300)
     print(f"Đã lưu biểu đồ Precision-Recall tại: {save_dir / 'pr_curve.png'}")
-    plt.show()
+    plt.close()
 
 # --- 3. MAIN ---
 
@@ -205,7 +205,7 @@ def main():
     ROOT_DIR = PROJECT_ROOT / "data"
     DIR = ROOT_DIR / "Radiographs"
     ANN = ROOT_DIR / "Segmentation/teeth_polygon.json"
-    WEIGHTS_PATH = "data/weights_ETE_train/maskrcnn_epoch67.pth" 
+    WEIGHTS_PATH = "data/weights_ETE_train/maskrcnn_epoch98.pth" 
 
     # Load Data
     md = teeth_dataset.TeethDataset()

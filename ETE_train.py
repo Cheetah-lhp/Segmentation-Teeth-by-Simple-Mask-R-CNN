@@ -92,12 +92,21 @@ def main():
     """so label + 1 background"""
     num_classes = md.num_classes + 1
     model = maskrcnn_resnet50(pretrained=False, num_classes=num_classes) 
-
     model.to(device)
-    optimizer = optim.Adam(model.parameters(), lr=1e-4)
-    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=20, gamma=0.5)
 
     num_epochs = 100 
+    optimizer = optim.Adam(model.parameters(), lr=1e-4)
+    # Tăng dần LR trong 5 epoch đầu để ổn định mô hình
+    warmup_epochs = 5
+    lr_start = 1e-4
+
+    # 1. Scheduler tăng dần (Warmup)
+    warmup_sch = torch.optim.lr_scheduler.LinearLR(optimizer, start_factor=0.1, total_iters=warmup_epochs)
+    # 2. Scheduler giảm dần (Cosine)
+    cosine_sch = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=(num_epochs - warmup_epochs), eta_min=1e-6)
+    # Kết hợp cả 2
+    scheduler = torch.optim.lr_scheduler.SequentialLR(optimizer, schedulers=[warmup_sch, cosine_sch], milestones=[warmup_epochs])
+
     for epoch in range(num_epochs):
         loss = train_one_epoch(model, optimizer, train_loader, device)
         scheduler.step() 
