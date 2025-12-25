@@ -69,25 +69,31 @@ class TeethDataset:
 
         # Add image entries
         for item in annotations:
-            filename = item["External ID"]
-            image_path = os.path.join(subset_dir, filename)
-            if not os.path.exists(image_path):
+            filename = os.path.basename(item["External ID"]).strip()
+
+            candidates = [
+                filename,
+                filename.lower(),
+                filename.upper()
+            ]
+
+            image_path = None
+            for fname in candidates:
+                p = os.path.join(subset_dir, fname)
+                if os.path.exists(p):
+                    image_path = p
+                    break
+
+            if image_path is None:
+                print("[SKIP IMAGE]", filename)
                 continue
-            ###
+
             objects = []
             for obj in item["Label"]["objects"]:
                 title = str(obj["title"]).strip()
 
-                if title.isdigit():
-                    class_id = int(title)
-                else:
-                    if title not in self.non_num_map:
-                        self.non_num_map[title] = self.next_label
-                        self.next_label += 1
-                    class_id = self.non_num_map[title]
-
                 objects.append({
-                    "class_id": mapping[obj["title"]],
+                    "class_id": mapping[title],
                     "bbox": obj["bounding box"],
                     "polygons": obj["polygons"]
                 })
@@ -103,6 +109,7 @@ class TeethDataset:
                 height=height,
                 objects=objects
             )
+
 
     def prepare(self):
         self.num_classes = len(self.class_info)

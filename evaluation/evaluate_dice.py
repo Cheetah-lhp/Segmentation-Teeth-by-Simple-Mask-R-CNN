@@ -2,29 +2,19 @@ import sys
 import os
 from pathlib import Path
 
-# --- BƯỚC 1: CẤU HÌNH ĐƯỜNG DẪN (PHẢI LÀM ĐẦU TIÊN) ---
-# Lấy đường dẫn tuyệt đối của file hiện tại
 FILE = Path(__file__).resolve()
-# Lấy thư mục gốc dự án (Lùi lại 2 cấp: evaluation -> Project_Root)
 PROJECT_ROOT = FILE.parent.parent
-
-# Thêm vào sys.path nếu chưa có
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.append(str(PROJECT_ROOT))
-# -----------------------------------------------------
 
-# --- BƯỚC 2: IMPORT CÁC THƯ VIỆN KHÁC ---
 import torch
 import numpy as np
 import matplotlib.pyplot as plt
 from tqdm import tqdm
-
-# --- BƯỚC 3: IMPORT MODULE CỦA DỰ ÁN (Bây giờ mới import được) ---
-# Lưu ý: Bạn nên dùng model custom của bạn thay vì torchvision nếu weights được train từ model custom
-# from torchvision.models.detection import maskrcnn_resnet50_fpn (Cái này là model có sẵn của PyTorch)
-from Mask_RCNN.model.mask_rcnn import maskrcnn_resnet50 # (Cái này là model custom của bạn)
+from Mask_RCNN.model.mask_rcnn import maskrcnn_resnet50 
 from Mask_RCNN.dataset import teeth_dataset
-from train import TorchTeethDataset, collate_fn
+from Mask_RCNN.dataset.torch_teeth_dataset import TorchTeethDataset
+from ETE_train import collate_fn
 
 # --- 1. CÁC HÀM TÍNH TOÁN ---
 
@@ -44,13 +34,18 @@ def compute_dice_coefficient(pred_mask, gt_mask):
     dice = (2.0 * intersection) / sum_area
     return dice.item() if isinstance(dice, torch.Tensor) else dice
 
-def evaluate_model(model, data_loader, device, num_classes, score_thresh=0.5):
+def evaluate_model(model, data_loader, device, num_classes_with_bg, score_thresh=0.01):
     model.eval()
-    dice_per_class = {i: [] for i in range(1, num_classes + 1)}
+    num_teeth_classes = num_classes_with_bg - 1 
+    dice_per_class = {i: [] for i in range(1, num_teeth_classes + 1)}
     
     print("Đang đánh giá model...")
     with torch.no_grad():
-        for images, targets in tqdm(data_loader):
+        for batch in tqdm(data_loader):
+            if batch is None: # Kiểm tra nếu collate_fn trả về None
+                continue
+                
+            images, targets = batch 
             images = [img.to(device) for img in images]
             outputs = model(images)
             
@@ -62,7 +57,9 @@ def evaluate_model(model, data_loader, device, num_classes, score_thresh=0.5):
                 pred_masks = output["masks"]
                 gt_labels = target["labels"]
                 gt_masks = target["masks"]
-                
+                # Lấy kích thước thực tế của mask từ Ground Truth
+                h, w = gt_masks.shape[-2:] 
+
                 # Lọc theo threshold
                 keep_idx = pred_scores >= score_thresh
                 pred_labels = pred_labels[keep_idx]
@@ -72,20 +69,19 @@ def evaluate_model(model, data_loader, device, num_classes, score_thresh=0.5):
                 pred_masks = (pred_masks > 0.5).squeeze(1).byte()
                 gt_masks = (gt_masks > 0).byte()
                 
-                for cls_id in range(1, num_classes + 1):
+                for cls_id in range(1, num_teeth_classes + 1):
                     # Gộp mask GT
                     gt_idx = (gt_labels == cls_id).nonzero(as_tuple=True)[0]
                     if len(gt_idx) > 0:
                         cls_gt_mask = torch.any(gt_masks[gt_idx], dim=0)
                     else:
-                        cls_gt_mask = torch.zeros_like(gt_masks[0]) if len(gt_masks) > 0 else torch.zeros((512, 512), device=device)
-
+                        cls_gt_mask = torch.zeros((h, w), device=device, dtype=torch.uint8)
                     # Gộp mask Pred
                     pred_idx = (pred_labels == cls_id).nonzero(as_tuple=True)[0]
                     if len(pred_idx) > 0:
                         cls_pred_mask = torch.any(pred_masks[pred_idx], dim=0)
                     else:
-                        cls_pred_mask = torch.zeros_like(cls_gt_mask)
+                        cls_pred_mask = torch.zeros((h, w), device=device, dtype=torch.uint8)
                     
                     dice = compute_dice_coefficient(cls_pred_mask, cls_gt_mask)
                     
@@ -96,7 +92,7 @@ def evaluate_model(model, data_loader, device, num_classes, score_thresh=0.5):
 
 # --- 2. HÀM VẼ ĐỒ THỊ ---
 
-def plot_results(dice_per_class, save_dir="evaluation_results"):
+def plot_results(dice_per_class, class_names, save_dir="evaluation/evaluation_results"):
     """
     Vẽ biểu đồ Box Plot và Bar Chart từ kết quả Dice.
     """
@@ -111,8 +107,9 @@ def plot_results(dice_per_class, save_dir="evaluation_results"):
     
     for cls_id in sorted_keys:
         scores = dice_per_class[cls_id]
-        if len(scores) > 0: # Chỉ vẽ những class có dữ liệu
-            labels.append(str(cls_id))
+        if len(scores) > 0:
+            name = class_names[cls_id - 1] 
+            labels.append(name)
             data.append(scores)
             means.append(np.mean(scores))
     
@@ -174,12 +171,12 @@ def main():
     # ĐƯỜNG DẪN DỮ LIỆU
     ROOT_DIR = PROJECT_ROOT / "data"
     DIR = ROOT_DIR / "Radiographs"
-    ANN = ROOT_DIR / "Segmentation/teeth_polygon_chunk_4.json"
-    WEIGHTS_PATH = "weights_ETE_training_epoch/maskrcnn_epoch1.pth" 
+    ANN = ROOT_DIR / "Segmentation/teeth_polygon.json"
+    WEIGHTS_PATH = "data/weights_ETE_train/maskrcnn_epoch28.pth" 
 
     # Load Data
     md = teeth_dataset.TeethDataset()
-    md.load_teeth(DIR, "train", ANN) # Đổi thành "val" hoặc "test" nếu cần
+    md.load_teeth(DIR, "train", ANN) 
     md.prepare()
     
     dataset = TorchTeethDataset(md, max_size=512)
@@ -194,18 +191,18 @@ def main():
     model.to(device)
 
     # Đánh giá
-    dice_results = evaluate_model(model, data_loader, device, num_classes=num_classes)
+    dice_results = evaluate_model(model, data_loader, device, num_classes_with_bg=num_classes)
 
     # Vẽ và lưu đồ thị
-    plot_results(dice_results)
+    plot_results(dice_results, md.class_names)
 
-    # In kết quả dạng Text
-    print("\n--- TÓM TẮT KẾT QUẢ ---")
+    # # In kết quả dạng Text
+    print("\n===KẾT QUẢ ===")
     all_scores = [s for scores in dice_results.values() for s in scores]
     if all_scores:
         print(f"Overall Mean Dice: {np.mean(all_scores):.4f}")
     else:
         print("Không có dữ liệu hợp lệ để tính toán.")
-
+    
 if __name__ == "__main__":
     main()

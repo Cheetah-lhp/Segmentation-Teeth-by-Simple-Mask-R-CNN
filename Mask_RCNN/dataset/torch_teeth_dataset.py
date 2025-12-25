@@ -6,7 +6,7 @@ from PIL import Image
 from utils.converter import polygons2mask
 
 class TorchTeethDataset(Dataset):
-    def __init__(self, mrcnn_dataset: TeethDataset, max_size=512):
+    def __init__(self, mrcnn_dataset: TeethDataset, max_size=1333):
         self.mds = mrcnn_dataset       # matterport dataset
         self.max_size = max_size
     def __len__(self):
@@ -33,11 +33,12 @@ class TorchTeethDataset(Dataset):
             
             smoothed_mask_np = polygons2mask(img_shape=(new_h, new_w), polygons=obj["polygons"], scale=scale)
             bbox = obj["bbox"]
+            y_min, x_min, y_max, x_max = bbox[0], bbox[1], bbox[2], bbox[3]
             scaled_bbox = [
-                bbox[0] * scale,
-                bbox[1] * scale,
-                bbox[2] * scale,
-                bbox[3] * scale
+                x_min * scale,
+                y_min * scale,
+                x_max * scale,
+                y_max * scale
             ]
             
             all_masks.append(smoothed_mask_np)
@@ -71,5 +72,6 @@ class TorchTeethDataset(Dataset):
             "masks": masks.float()
             # "image_id": torch.tensor([idx])
         }
-
+        if len(all_boxes) == 0:
+            return None
         return image, target

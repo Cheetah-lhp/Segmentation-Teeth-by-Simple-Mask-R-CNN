@@ -1,6 +1,8 @@
 import torch
 import numpy as np
 import os, sys
+import csv
+import time
 from torch.utils.data import DataLoader
 from torchvision import transforms
 from Mask_RCNN.model.mask_rcnn import maskrcnn_resnet50
@@ -10,9 +12,9 @@ from PIL import Image, ImageDraw
 from utils.converter import create_binary_smoothed_mask
 
 def collate_fn(batch):
-    batch = [b for b in batch if b is not None]
+    batch = [b for b in batch if b is not None and b[1]["boxes"].numel() > 0]
     if len(batch) == 0:
-        return
+        return None
     return tuple(zip(*batch))
 
 """ham bat buoc co trong cac bai segmentation nhieu vat the:
@@ -31,35 +33,43 @@ def collate_fn(batch):
 
 def train_one_epoch(model, optimizer, data_loader, device):
     model.train()
-    total_loss = 0.0
+
+    loss_sums = {
+        "roi_classifier_loss": 0.0,
+        "roi_box_loss": 0.0,
+        "roi_mask_loss": 0.0,
+        "rpn_objectness_loss": 0.0,
+        "rpn_box_loss": 0.0,
+        "total_loss": 0.0
+    }
+
+    num_batches = 0
 
     for data in data_loader:
         if data is None:
             continue
+
         images, targets = data
         images = [img.to(device) for img in images]
         targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
-        
+
         loss_dict = model(images, targets)
-        """dictionary chua cac loss cua model:
-        {
-            'loss_classifier' (head)
-            'loss_box_reg'
-            'loss_mask'
-            'loss_objectness' (RPN)
-            'loss_rpn_box_reg' (RPN)
-        }
-        """
-        multi_task_loss = sum(loss for loss in loss_dict.values())
-        #print("\n multi task loss debug")
-        #print(loss_dict)
+        total_loss = sum(loss for loss in loss_dict.values())
+
         optimizer.zero_grad()
-        multi_task_loss.backward()
+        total_loss.backward()
         optimizer.step()
 
-        total_loss += multi_task_loss.item()
+        for k in loss_dict:
+            loss_sums[k] += loss_dict[k].item()
 
-    return total_loss / len(data_loader)
+        loss_sums["total_loss"] += total_loss.item()
+        num_batches += 1
+
+    for k in loss_sums:
+        loss_sums[k] /= num_batches
+
+    return loss_sums
 
 def main():
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -68,16 +78,15 @@ def main():
     #     transforms.Resize((512, 512)),
     #     transforms.ToTensor()
     # ])
-    ROOT_DIR = os.path.abspath(r"D:\Documents\Machine Learning\Segmentation-Teeth-by-Simple-Mask-R-CNN\data")
-    sys.path.append(ROOT_DIR)
-    DIR = os.path.join(ROOT_DIR, "Radiographs")
-    ANNOTATION_DIR = os.path.join(ROOT_DIR, "Segmentation/teeth_polygon_chunk_4.json")
+    ROOT_DIR = os.path.abspath("./")
+    DIR = os.path.join(ROOT_DIR, "data/general_Radiographs")
+    ANNOTATION_DIR = os.path.join(ROOT_DIR, "data/general_Segmentation/teeth_polygon.json")
 
     md = TeethDataset()
     md.load_teeth(DIR, "train", ANNOTATION_DIR)
     md.prepare()
 
-    dataset = TorchTeethDataset(md, max_size=512)
+    dataset = TorchTeethDataset(md, max_size=1333)
     
     # """Chia 80/20"""
     # n = len(dataset)
@@ -92,22 +101,88 @@ def main():
     """so label + 1 background"""
     num_classes = md.num_classes + 1
     model = maskrcnn_resnet50(pretrained=False, num_classes=num_classes) 
-    #tat resize trong mask rcnn de giam RAM GPU
-    
-    model.transformer.min_size = 512
-    model.transformer.max_size = 512
-    model.transformer.img_mean = [0.0, 0.0, 0.0]
-    model.transformer.img_std = [1.0, 1.0, 1.0]
 
     model.to(device)
     optimizer = optim.Adam(model.parameters(), lr=1e-4)
+    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=20, gamma=0.5)
 
     num_epochs = 60
-    for epoch in range(num_epochs):
-        loss = train_one_epoch(model, optimizer, train_loader, device)
-        print(f"Epoch {epoch+1}/{num_epochs}, Loss: {loss:.4f}")
 
-        SAVE_DIR = r"D:\Documents\Machine Learning\Segmentation-Teeth-by-Simple-Mask-R-CNN\weights_ETE_training_epoch"
+    ####phuc
+    LOG_DIR = os.path.join(ROOT_DIR, "logs")
+    os.makedirs(LOG_DIR, exist_ok=True)
+    LOG_FILE = os.path.join(LOG_DIR, "train_log.csv")
+
+    if not os.path.exists(LOG_FILE):
+        with open(LOG_FILE, "w", newline="") as f:
+            writer = csv.writer(f)
+            writer.writerow([
+                "epoch",
+                "total_loss",
+                "roi_classifier_loss",
+                "roi_box_loss",
+                "roi_mask_loss",
+                "rpn_objectness_loss",
+                "rpn_box_loss",
+                "learning_rate",
+                "is_best",
+                "epoch_time_sec"
+            ])
+        #####phuc
+    best_loss = float("inf")
+
+    for epoch in range(num_epochs):
+        start_time = time.time()
+
+        loss = train_one_epoch(model, optimizer, train_loader, device)
+        scheduler.step() 
+        current_lr = optimizer.param_groups[0]['lr']
+        epoch_time = time.time() - start_time
+
+        is_best = loss["total_loss"] < best_loss
+        if is_best:
+            best_loss = loss["total_loss"]
+
+        print(f"Epoch {epoch+1}/{num_epochs}, Loss: {loss["total_loss"]:.4f}, LR: {current_lr}")
+
+        #######checkpoint
+        SAVE_DIR = os.path.join(ROOT_DIR, "data/checkpoints")
+        os.makedirs(SAVE_DIR, exist_ok=True)
+
+        checkpoint = {
+            "epoch": epoch + 1,
+            "model_state_dict": model.state_dict(),
+            "optimizer_state_dict": optimizer.state_dict(),
+            "scheduler_state_dict": scheduler.state_dict(),
+            "loss": loss,
+            "num_classes": num_classes,
+            "best_loss": best_loss,
+        }
+        if is_best:
+            torch.save(checkpoint, os.path.join(SAVE_DIR, "best.pth"))
+        torch.save(
+            checkpoint,
+            os.path.join(SAVE_DIR, f"checkpoint_epoch_{epoch+1}.pth")
+        )
+        #####checkpoint
+
+        ####csv
+        with open(LOG_FILE, "a", newline="") as f:
+            writer = csv.writer(f)
+            writer.writerow([
+                epoch + 1,
+                loss["total_loss"],
+                loss["roi_classifier_loss"],
+                loss["roi_box_loss"],
+                loss["roi_mask_loss"],
+                loss["rpn_objectness_loss"],
+                loss["rpn_box_loss"],
+                current_lr,
+                best_loss,
+                epoch_time
+            ])
+        ####csv
+        SAVE_DIR = os.path.join(ROOT_DIR, "data/weights_ETE_train")
         os.makedirs(SAVE_DIR, exist_ok=True)
         torch.save(model.state_dict(), os.path.join(SAVE_DIR, f"maskrcnn_epoch{epoch+1}.pth"))
         #free VRAM moi epoch

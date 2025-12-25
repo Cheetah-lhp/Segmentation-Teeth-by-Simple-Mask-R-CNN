@@ -56,7 +56,7 @@ class MaskRCNN(nn.Module):
         out_channels = backbone.out_channels
 
         #RPN
-        anchor_sizes = (128, 256, 512)
+        anchor_sizes = (8, 16, 32, 64, 128)
         anchor_ratios = (0.5, 1, 2)
         num_anchors = len(anchor_sizes) * len(anchor_ratios)
         rpn_anchor_generator = AnchorGenerator(anchor_sizes, anchor_ratios)
@@ -115,7 +115,15 @@ class MaskRCNN(nn.Module):
         # print("Num proposals:", len(proposal[0]))
         # print("Sample proposals:", proposal[0][:5])
 
+        if not self.training:
+            print(f"RPN generated {len(proposal)} proposals")
+
         result, roi_losses = self.head(feature, proposal, image_shape, target)
+
+        if not self.training:
+            print(f"RoI Head detected {len(result['boxes'])} objects")
+            if len(result['boxes']) > 0:
+                print(f"Max Score: {result['scores'].max().item()}")
         
         if self.training:
             return dict(**rpn_losses, **roi_losses)
@@ -175,8 +183,8 @@ class ResBackbone(nn.Module):
             if 'layer2' not in name and 'layer3' not in name and 'layer4' not in name:
                 parameter.requires_grad_(False) #freeze cac tham so khong thuoc layer2,3,4, chi hoc 2,3 ,4 
                 
-        self.body = nn.ModuleDict(d for i, d in enumerate(body.named_children()) if i < 8)
-        in_channels =2048
+        self.body = nn.ModuleDict(d for i, d in enumerate(body.named_children()) if i < 7)
+        in_channels =1024
         self.out_channels = 256
 
         self.inner_block_module = nn.Conv2d(in_channels, self.out_channels, 1) # 1x1 conv giam 2048 -> 256
