@@ -18,8 +18,9 @@ def fastrcnn_loss(class_logits, box_regression, label, regression_targets):
     weights = torch.ones(num_classes).to(device)
     
     rare_ids = [1, 16, 23, 24, 25, 26] + list(range(33, 53))
-    valid_rare_ids = [i for i in rare_ids if i < num_classes]
-    weights[valid_rare_ids] = 5.0 # Phạt nặng gấp 5 lần nếu sai răng hiếm
+    super_rare_ids = [1,39, 51]
+    weights[rare_ids] = 5.0 # Phạt nặng gấp 5 lần nếu sai răng hiếm
+    weights[super_rare_ids] = 10.0 # Phạt nặng gấp 10 lần nếu sai răng siêu hiếm
 
     classification_loss = F.cross_entropy(class_logits, label, weight=weights)
 

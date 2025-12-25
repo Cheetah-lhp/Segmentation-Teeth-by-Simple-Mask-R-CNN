@@ -196,7 +196,7 @@ if __name__ == "__main__":
     num_classes = md.num_classes + 1
     # WEIGHTS_PATH = os.path.join(ROOT_DIR, "data/weights_ETE_train/maskrcnn_epoch40.pth")
     # model = maskrcnn_resnet50(pretrained=False, num_classes=num_classes)
-    WEIGHTS_PATH = os.path.join(ROOT_DIR, "data/weights_ETE_train/maskrcnn_epoch87.pth")
+    WEIGHTS_PATH = os.path.join(ROOT_DIR, "data/weights_ETE_train/maskrcnn_epoch_final.pth")
     model = maskrcnn_resnet50(pretrained=False, num_classes=num_classes)
      
     model.load_state_dict(torch.load(WEIGHTS_PATH, map_location=device, weights_only=True))

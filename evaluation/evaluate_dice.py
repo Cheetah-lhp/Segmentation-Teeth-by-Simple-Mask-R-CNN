@@ -173,11 +173,11 @@ def main():
     ROOT_DIR = PROJECT_ROOT / "data"
     DIR = ROOT_DIR / "Radiographs"
     ANN = ROOT_DIR / "Segmentation/teeth_polygon.json"
-    WEIGHTS_PATH = "data/weights_ETE_train/maskrcnn_epoch98.pth" 
+    WEIGHTS_PATH = "data/weights_ETE_train/maskrcnn_epoch_final.pth" 
 
     # Load Data
     md = teeth_dataset.TeethDataset()
-    md.load_teeth(DIR, "train", ANN) 
+    md.load_teeth(DIR, "val", ANN) 
     md.prepare()
     
     dataset = TorchTeethDataset(md, max_size=1333)
