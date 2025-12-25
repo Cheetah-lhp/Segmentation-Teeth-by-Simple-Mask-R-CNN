@@ -12,9 +12,10 @@ from PIL import Image, ImageDraw
 from utils.converter import create_binary_smoothed_mask
 
 def collate_fn(batch):
+    # Lọc bỏ những sample mà target không có boxes (răng)
     batch = [b for b in batch if b is not None and b[1]["boxes"].numel() > 0]
     if len(batch) == 0:
-        return None
+        return None # Trả về None nếu cả batch toàn ảnh trống
     return tuple(zip(*batch))
 
 """ham bat buoc co trong cac bai segmentation nhieu vat the:
