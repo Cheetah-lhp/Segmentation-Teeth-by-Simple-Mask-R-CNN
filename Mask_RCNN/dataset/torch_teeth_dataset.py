@@ -2,6 +2,10 @@ import torch
 import numpy as np
 from torch.utils.data import Dataset
 from Mask_RCNN.dataset.teeth_dataset import TeethDataset
+<<<<<<< HEAD
+=======
+from PIL import Image
+>>>>>>> 766571ee5d967372d828ae5b12785cdf77311d99
 import cv2
 from utils.converter import polygons2mask
 from Mask_RCNN.dataset.augmentor import TeethAugmentor
