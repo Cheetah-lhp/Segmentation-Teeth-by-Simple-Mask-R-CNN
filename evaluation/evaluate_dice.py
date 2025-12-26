@@ -171,15 +171,9 @@ def main():
 
     # ĐƯỜNG DẪN DỮ LIỆU
     ROOT_DIR = PROJECT_ROOT / "data"
-<<<<<<< HEAD
     DIR = ROOT_DIR / "general_Radiographs"
     ANN = ROOT_DIR / "general_Segmentation/teeth_polygon.json"
     WEIGHTS_PATH = "data/weights_ETE_train/maskrcnn_epoch60.pth" 
-=======
-    DIR = ROOT_DIR / "Radiographs"
-    ANN = ROOT_DIR / "Segmentation/teeth_polygon.json"
-    WEIGHTS_PATH = "data/weights_ETE_train/maskrcnn_epoch58.pth" 
->>>>>>> 766571ee5d967372d828ae5b12785cdf77311d99
 
     # Load Data
     md = teeth_dataset.TeethDataset()

@@ -110,8 +110,8 @@ def main():
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
     ROOT_DIR = os.path.abspath("./")
-    DIR = os.path.join(ROOT_DIR, "data/Radiographs")
-    ANNOTATION_DIR = os.path.join(ROOT_DIR, "data/Segmentation/teeth_polygon.json")
+    DIR = os.path.join(ROOT_DIR, "data/general_Radiographs")
+    ANNOTATION_DIR = os.path.join(ROOT_DIR, "data/general_Segmentation/teeth_polygon.json")
 
     md_train = TeethDataset()
     md_train.load_teeth(DIR, "train", ANNOTATION_DIR)
@@ -129,24 +129,13 @@ def main():
     val_loader = DataLoader(val_set, batch_size=1, shuffle=False, collate_fn=collate_fn)
 
     """so label + 1 background"""
-<<<<<<< HEAD
     num_classes = md_train.num_classes + 1
     model = maskrcnn_resnet50(pretrained=True, num_classes=num_classes) 
     model.to(device)
 
     optimizer = optim.Adam(model.parameters(), lr=1e-4)
     warmup_epochs = 5
-=======
-    num_classes = md.num_classes + 1
-    model = maskrcnn_resnet50(pretrained=True, num_classes=num_classes) 
-
-    model.to(device)
->>>>>>> 766571ee5d967372d828ae5b12785cdf77311d99
     num_epochs = 60
-    optimizer = optim.Adam(model.parameters(), lr=1e-4)
-    # Tăng dần LR trong 5 epoch đầu để ổn định mô hình
-    warmup_epochs = 5
-    lr_start = 1e-4
 
     # 1. Scheduler tăng dần (Warmup)
     warmup_sch = torch.optim.lr_scheduler.LinearLR(optimizer, start_factor=0.1, total_iters=warmup_epochs)
@@ -154,7 +143,6 @@ def main():
     cosine_sch = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=(num_epochs - warmup_epochs), eta_min=1e-6)
     # Kết hợp cả 2
     scheduler = torch.optim.lr_scheduler.SequentialLR(optimizer, schedulers=[warmup_sch, cosine_sch], milestones=[warmup_epochs])
-<<<<<<< HEAD
 
     LOG_DIR = os.path.join(ROOT_DIR, "logs")
     os.makedirs(LOG_DIR, exist_ok=True)
@@ -260,96 +248,6 @@ def main():
                 epoch_time
             ])
         ####csv
-=======
-
-    #Train trên sever
-    # LOG_DIR = os.path.join(ROOT_DIR, "logs")
-    # os.makedirs(LOG_DIR, exist_ok=True)
-    # LOG_FILE = os.path.join(LOG_DIR, "train_log.csv")
-
-    # if not os.path.exists(LOG_FILE):
-    #     with open(LOG_FILE, "w", newline="") as f:
-    #         writer = csv.writer(f)
-    #         writer.writerow([
-    #             "epoch",
-    #             "total_loss",
-    #             "roi_classifier_loss",
-    #             "roi_box_loss",
-    #             "roi_mask_loss",
-    #             "rpn_objectness_loss",
-    #             "rpn_box_loss",
-    #             "learning_rate",
-    #             "is_best",
-    #             "epoch_time_sec"
-    #         ])
-    #     #####phuc
-    # best_loss = float("inf")
-
-    # for epoch in range(num_epochs):
-    #     start_time = time.time()
-
-    #     loss = train_one_epoch(model, optimizer, train_loader, device)
-    #     scheduler.step() 
-    #     current_lr = optimizer.param_groups[0]['lr']
-    #     epoch_time = time.time() - start_time
-
-    #     is_best = loss["total_loss"] < best_loss
-    #     if is_best:
-    #         best_loss = loss["total_loss"]
-
-    #     print(f"Epoch {epoch+1}/{num_epochs}, Loss: {loss["total_loss"]:.4f}, LR: {current_lr}")
-
-    #     #######checkpoint
-    #     SAVE_DIR = os.path.join(ROOT_DIR, "data/checkpoints")
-    #     os.makedirs(SAVE_DIR, exist_ok=True)
-
-    #     checkpoint = {
-    #         "epoch": epoch + 1,
-    #         "model_state_dict": model.state_dict(),
-    #         "optimizer_state_dict": optimizer.state_dict(),
-    #         "scheduler_state_dict": scheduler.state_dict(),
-    #         "loss": loss,
-    #         "num_classes": num_classes,
-    #         "best_loss": best_loss,
-    #     }
-    #     if is_best:
-    #         torch.save(checkpoint, os.path.join(SAVE_DIR, "best.pth"))
-    #     torch.save(
-    #         checkpoint,
-    #         os.path.join(SAVE_DIR, f"checkpoint_epoch_{epoch+1}.pth")
-    #     )
-    #     #####checkpoint
-
-    #     ####csv
-    #     with open(LOG_FILE, "a", newline="") as f:
-    #         writer = csv.writer(f)
-    #         writer.writerow([
-    #             epoch + 1,
-    #             loss["total_loss"],
-    #             loss["roi_classifier_loss"],
-    #             loss["roi_box_loss"],
-    #             loss["roi_mask_loss"],
-    #             loss["rpn_objectness_loss"],
-    #             loss["rpn_box_loss"],
-    #             current_lr,
-    #             best_loss,
-    #             epoch_time
-    #         ])
-    #     ####csv
-    #     SAVE_DIR = os.path.join(ROOT_DIR, "data/weights_ETE_train")
-    #     os.makedirs(SAVE_DIR, exist_ok=True)
-    #     torch.save(model.state_dict(), os.path.join(SAVE_DIR, f"maskrcnn_epoch{epoch+1}.pth"))
-    #     #free VRAM moi epoch
-    #     torch.cuda.empty_cache()
-
-    # Train trên máy local
-    for epoch in range(num_epochs):
-        loss = train_one_epoch(model, optimizer, train_loader, device)
-        scheduler.step() 
-        current_lr = optimizer.param_groups[0]['lr']
-        print(f"Epoch {epoch+1}/{num_epochs}, Loss: {loss["total_loss"]:.4f}, LR: {current_lr}")
-
->>>>>>> 766571ee5d967372d828ae5b12785cdf77311d99
         SAVE_DIR = os.path.join(ROOT_DIR, "data/weights_ETE_train")
         os.makedirs(SAVE_DIR, exist_ok=True)
         torch.save(model.state_dict(), os.path.join(SAVE_DIR, f"maskrcnn_epoch{epoch+1}.pth"))
