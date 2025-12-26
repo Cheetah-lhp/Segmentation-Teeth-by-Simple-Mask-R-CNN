@@ -22,6 +22,7 @@ def compute_dice_coefficient(pred_mask, gt_mask):
     """
     Tính chỉ số Dice cho 2 mask nhị phân.
     """
+    gt_mask = gt_mask.to(pred_mask.device)
     pred_mask = pred_mask > 0
     gt_mask = gt_mask > 0
     
@@ -170,23 +171,23 @@ def main():
 
     # ĐƯỜNG DẪN DỮ LIỆU
     ROOT_DIR = PROJECT_ROOT / "data"
-    DIR = ROOT_DIR / "Radiographs"
-    ANN = ROOT_DIR / "Segmentation/teeth_polygon.json"
-    WEIGHTS_PATH = "data/weights_ETE_train/maskrcnn_epoch28.pth" 
+    DIR = ROOT_DIR / "general_Radiographs"
+    ANN = ROOT_DIR / "general_Segmentation/teeth_polygon.json"
+    WEIGHTS_PATH = "data/weights_ETE_train/maskrcnn_epoch60.pth" 
 
     # Load Data
     md = teeth_dataset.TeethDataset()
-    md.load_teeth(DIR, "train", ANN) 
+    md.load_teeth(DIR, "test", ANN) 
     md.prepare()
     
-    dataset = TorchTeethDataset(md, max_size=512)
+    dataset = TorchTeethDataset(md, max_size=1333)
     data_loader = torch.utils.data.DataLoader(
         dataset, batch_size=1, shuffle=False, collate_fn=collate_fn
     )
 
     # Load Model
     num_classes = md.num_classes + 1
-    model = maskrcnn_resnet50(pretrained=False, num_classes=num_classes)
+    model = maskrcnn_resnet50(pretrained=True, num_classes=num_classes)
     model.load_state_dict(torch.load(WEIGHTS_PATH, map_location=device, weights_only=True))
     model.to(device)
 

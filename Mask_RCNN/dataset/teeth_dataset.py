@@ -37,7 +37,7 @@ class TeethDataset:
         self.image_info.append(info)
 
     def load_teeth(self, dataset_dir, subset, annotation_json):
-        assert subset in ["train", "val"]
+        assert subset in ["train", "test", "val"]
         subset_dir = os.path.join(dataset_dir, subset)
 
         with open(annotation_json) as f:
