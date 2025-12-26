@@ -212,7 +212,7 @@ def main():
     md.load_teeth(DIR, "test", ANN) 
     md.prepare()
     
-    dataset = TorchTeethDataset(md, max_size=1333)
+    dataset = TorchTeethDataset(md, max_size=1333, augmentation=False)
     data_loader = torch.utils.data.DataLoader(dataset, batch_size=1, shuffle=False, collate_fn=collate_fn)
 
     # Load Model

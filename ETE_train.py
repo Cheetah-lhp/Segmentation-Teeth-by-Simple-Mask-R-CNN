@@ -116,12 +116,12 @@ def main():
     md_train = TeethDataset()
     md_train.load_teeth(DIR, "train", ANNOTATION_DIR)
     md_train.prepare()
-    train_set = TorchTeethDataset(md_train, max_size=1333)
+    train_set = TorchTeethDataset(md_train, max_size=1333, augmentation=True)
 
     md_val = TeethDataset()
     md_val.load_teeth(DIR, "val", ANNOTATION_DIR)
     md_val.prepare()
-    val_set = TorchTeethDataset(md_val, max_size=1333)
+    val_set = TorchTeethDataset(md_val, max_size=1333, augmentation=False)
 
 
     """batch_size: so luong sample (anh) duoc dua vao model trong 1 lan forward+backward"""
