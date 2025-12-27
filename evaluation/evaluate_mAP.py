@@ -131,27 +131,15 @@ def evaluate_map(model, data_loader, device, num_classes, iou_threshold=0.5):
 
 # --- 2. HÀM VẼ BIỂU ĐỒ AP & PR CURVE ---
 
-def plot_map_results(aps_input, pr_data, class_names, save_dir="evaluation/evaluation_results"):
+def plot_map_results(aps_input, pr_data, valid_class_names, full_class_names, save_dir="evaluation/evaluation_results"):
     save_dir = Path(save_dir)
     save_dir.mkdir(parents=True, exist_ok=True)
     
     mAP = np.mean(aps_input)
     
-    # --- BIỂU ĐỒ 1: BAR CHART (Lọc để vẽ) ---
-    labels = []
-    aps = []
-    for i, ap in enumerate(aps_input):
-        if ap > 0:
-            name = class_names[i] 
-            labels.append(name)
-            aps.append(ap)
-
-    if not aps:
-        print("Không có class nào có AP > 0 để vẽ Bar Chart.")
-        return
-    
+    # --- BIỂU ĐỒ 1: BAR CHART (Lọc để vẽ) ---    
     plt.figure(figsize=(15, 6))
-    bars = plt.bar(labels, aps, color='skyblue', edgecolor='navy')
+    bars = plt.bar(valid_class_names, aps_input, color='skyblue', edgecolor='navy')
     
     # Vẽ đường kẻ đỏ dựa trên mAP thực tế (ví dụ: 0.4632)
     plt.axhline(y=mAP, color='r', linestyle='--', label=f'Overall mAP: {mAP:.4f}')
@@ -187,8 +175,8 @@ def plot_map_results(aps_input, pr_data, class_names, save_dir="evaluation/evalu
         
         if ap > 0:
             # Lấy tên răng từ class_names (cls_id bắt đầu từ 1)
-            if (cls_id - 1) < len(class_names):
-                name = class_names[cls_id - 1]
+            if (cls_id - 1) < len(full_class_names):
+                name = full_class_names[cls_id - 1]
             else:
                 name = f"ID_{cls_id}"
                 
@@ -238,7 +226,7 @@ def main():
     valid_class_names = [md.class_names[i-1] for i in valid_classes]
 
     # Vẽ đồ thị
-    plot_map_results(aps, pr_data, valid_class_names)
+    plot_map_results(aps, pr_data, valid_class_names, md.class_names)
 
     # In kết quả dạng Text
     print(f"\n=== KẾT QUẢ ===")
