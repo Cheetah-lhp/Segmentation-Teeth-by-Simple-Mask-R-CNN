@@ -130,13 +130,55 @@ class TeethDataset:
     def image_ids(self):
         return self._image_ids
 
-    def load_image(self, image_id):
-        image = skimage.io.imread(self.image_info[image_id]['path'])
-        if image.ndim != 3:
-            image = skimage.color.gray2rgb(image)
-        if image.shape[-1] == 4:
-            image = image[..., :3]
-        return image
+    def load_image(self, file_path, annotation_json):
+        filename = os.path.basename(file_path).lower()
+        
+        with open(annotation_json) as f:
+            annotations = json.load(f)
+
+        # 1. Build the mapping for ALL classes (Required so class_ids match training)
+        class_titles = set()
+        for item in annotations:
+            for obj in item["Label"]["objects"]:
+                class_titles.add(str(obj["title"]).strip())
+        
+        numeric_titles = sorted([t for t in class_titles if t.isdigit()], key=int)
+        alpha_titles = sorted([t for t in class_titles if not t.isdigit()])
+        mapping = {t: int(t) for t in numeric_titles}
+        start_id = max(mapping.values(), default=0) + 1
+        for idx, t in enumerate(alpha_titles):
+            mapping[t] = start_id + idx
+
+        # 2. Find the specific item
+        target_item = None
+        for item in annotations:
+            if item["External ID"].lower() == filename:
+                target_item = item
+                break
+        
+        if target_item is None:
+            raise FileNotFoundError(f"Could not find {filename} in {annotation_json}")
+
+        # 3. Setup image_info for just this one image
+        image = skimage.io.imread(file_path)
+        height, width = image.shape[:2]
+        
+        objects = []
+        for obj in target_item["Label"]["objects"]:
+            objects.append({
+                "class_id": mapping[str(obj["title"]).strip()],
+                "bbox": obj["bounding box"],
+                "polygons": obj["polygons"]
+            })
+
+        self.add_image(
+            source="teeth",
+            image_id=target_item["External ID"],
+            path=file_path,
+            width=width,
+            height=height,
+            objects=objects
+        )
 
     def load_mask(self, image_id):
         info = self.image_info[image_id]

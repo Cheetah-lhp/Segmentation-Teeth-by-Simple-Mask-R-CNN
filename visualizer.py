@@ -4,7 +4,6 @@ from matplotlib.patches import Rectangle
 from Mask_RCNN.dataset import TeethDataset, TorchTeethDataset
 import torch, matplotlib, os
 from Mask_RCNN.model.mask_rcnn import maskrcnn_resnet50
-from torchvision.models.detection import maskrcnn_resnet50_fpn
 
 class TeethVisualizer:
     """
@@ -14,13 +13,17 @@ class TeethVisualizer:
     def __init__(self, dataset: TorchTeethDataset, model=None):
         self.dataset = dataset
         self.model = model
-        if (self.model):
+        if self.model:
             self.model.eval()
+            # Get num_classes from the model's classification head
+            self.num_classes = self.model.head.box_predictor.cls_score.out_features
+        else:
+            self.num_classes = len(self.dataset.mds.class_info)
         self.class_map = self.dataset.mds.class_info
         self.colors = matplotlib.colormaps['hsv']
 
     def get_color(self, label_id: int):
-        return self.colors(label_id % (len(self.class_map) + 1))
+        return self.colors(label_id % (self.num_classes + 1))
 
     def _get_processed_data(self, idx: int):
         """Fetches and processes data from dataset and model for a given index."""
@@ -78,21 +81,18 @@ class TeethVisualizer:
 
     def visualize_masks_and_boxes(
         self, 
-        idx: int, 
+        idx: int = 0, 
         source: str = 'gt', 
         tooth_index: int = None, 
-        score_threshold: float = 0
+        score_threshold: float = 0,
+        save_path: str = "result.png"
     ):
         """
-        Displays the image with masks and bounding boxes for a specific tooth 
-        or all teeth from the chosen source.
-
-        Parameters:
-        - idx (int): The index of the image in the dataset.
-        - source (str): 'gt' for Ground Truth, 'pred' for Model Prediction.
-        - tooth_index (Optional[int]): The index of a specific tooth to display (0-indexed). 
-                                       If None, all teeth are displayed.
-        - score_threshold (float): Minimum score for filtering predictions (ignored if source='gt').
+        - source = 'gt'  ground truth của dataset
+        - source = 'pred'  dự đoán của model
+        - tooth_index: index của răng muốn hiển thị (bắt đầu từ 0). None để hiển thị tất cả răng
+        - score_threshold: ngưỡng điểm số để lọc dự đoán (chỉ áp dụng khi source='pred')
+        - save_path: nếu được cung cấp, lưu hình ảnh vào đường dẫn này thay vì hiển thị
         """
         
         image_np, data = self._get_processed_data(idx)
@@ -116,22 +116,33 @@ class TeethVisualizer:
 
         # --- Select specific tooth if requested ---
         if tooth_index is not None:
-            if 0 <= tooth_index < len(labels):
+            if 1 <= tooth_index <= len(labels):
                 # L = [10, 20, 30, 40] -> L[2:3] = [30]; L[2] = 30
-                masks = masks[tooth_index:tooth_index+1]
-                boxes = boxes[tooth_index:tooth_index+1]
-                labels = labels[tooth_index:tooth_index+1]
-                scores = scores[tooth_index:tooth_index+1] if scores is not None else None
+                masks = masks[tooth_index-1:tooth_index]
+                boxes = boxes[tooth_index-1:tooth_index]
+                labels = labels[tooth_index-1:tooth_index]
+                scores = scores[tooth_index-1:tooth_index] if scores is not None else None
                 title_suffix = f"{title_suffix} | Tooth Index: {tooth_index}"
             else:
                 print(f"Warning: Tooth index {tooth_index} out of range (0 to {len(labels)-1}). Displaying all.")
                 tooth_index = None # Revert to displaying all
         
         # Display the result
-        plt.figure(figsize=(10, 10))
+        fig = plt.figure(figsize=(10, 10))
         ax = plt.gca()
-        self._plot_item(ax, image_np, masks, boxes, labels, f"Image Index {idx} | {title_suffix}", scores)
-        plt.show()
+        self._plot_item(ax, image_np, masks, boxes, labels, f"Image {self.dataset.mds.image_info[0]['id']} | {title_suffix}", scores)
+
+        if save_path:
+            # Create directory if it doesn't exist
+            save_dir = os.path.dirname(save_path)
+            if save_dir and not os.path.exists(save_dir):
+                os.makedirs(save_dir)
+
+            plt.savefig(save_path)
+            plt.close(fig) # Close figure to free memory and prevent showing
+            print(f"Visualization saved to {save_path}")
+        else:
+            plt.show()
 
 
     def _plot_item(self, ax: plt.Axes, img_np: np.ndarray, masks: np.ndarray, 
@@ -172,41 +183,44 @@ class TeethVisualizer:
                 ax.add_patch(rect)
                 
                 # --- C. Label Text ---
-                if label > 0 and (label - 1) < len(self.dataset.mds.class_names):
-                    label_name = self.dataset.mds.class_names[label - 1]
-                else:
-                    label_name = f"Unknown_{label}"
+                # if label > 0 and (label - 1) < len(self.dataset.mds.class_names):
+                #     label_name = self.dataset.mds.class_names[label - 1]
+                # else:
+                #     label_name = f"Unknown_{label}"
                 score_text = f" ({scores[i]:.2f})" if scores is not None else ""
                 
                 ax.text(
-                    x_min, y_min - 5, label_name + score_text, 
+                    x_min, y_min - 5, f'{label}{score_text}', 
                     color='white', fontsize=7,
                     bbox=dict(facecolor=color[:3], alpha=0.7, edgecolor='none', boxstyle='round,pad=0.3')
                 )
 
 if __name__ == "__main__":
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
     ROOT_DIR = os.path.abspath("./")
     DIR = os.path.join(ROOT_DIR, "data/Radiographs")
     ANNOTATION_DIR = os.path.join(ROOT_DIR, "data/Segmentation/teeth_polygon.json")
+    WEIGHTS_PATH = os.path.join(ROOT_DIR, "data/weights_ETE_train/maskrcnn_epoch34.pth")
+
+    #----------------------------------------------------
+    SAVE_PATH = os.path.join(ROOT_DIR, "data/result.png")
+    TOOTH_INDEX = None
+    IMAGE_NUMBER = 7
+    SOURCE = 'pred'
+    # ---------------------------------------------------
+
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
     md = TeethDataset()
-    md.load_teeth(DIR, "train", ANNOTATION_DIR)
-    md.prepare()
+    md.load_image(os.path.join(DIR, f"train/{IMAGE_NUMBER}.JPG"), ANNOTATION_DIR)
     dataset = TorchTeethDataset(md, max_size=1333)
     
-    num_classes = md.num_classes + 1
-    # WEIGHTS_PATH = os.path.join(ROOT_DIR, "data/weights_ETE_train/maskrcnn_epoch40.pth")
-    # model = maskrcnn_resnet50(pretrained=False, num_classes=num_classes)
-    WEIGHTS_PATH = os.path.join(ROOT_DIR, "data/weights_ETE_train/maskrcnn_epoch34.pth")
+    checkpoint = torch.load(WEIGHTS_PATH, map_location=device, weights_only=True)
+    if 'head.box_predictor.cls_score.weight' in checkpoint:
+        num_classes = checkpoint['head.box_predictor.cls_score.weight'].shape[0]
     model = maskrcnn_resnet50(pretrained=False, num_classes=num_classes)
-     
-    model.load_state_dict(torch.load(WEIGHTS_PATH, map_location=device, weights_only=True))
+    model.load_state_dict(checkpoint)
     model.to(device)
     
     visualizer = TeethVisualizer(dataset=dataset, model=model)
-    #source = 'gt'  ground truth của dataset
-    #source = 'pred'  dự đoán của model
-    #idx: index của ảnh trong dataset
-    #tooth_index: index của răng muốn hiển thị (bắt đầu từ 0). None để hiển thị tất cả răng
-    #score_threshold: ngưỡng điểm số để lọc dự đoán (chỉ áp dụng khi source='pred')
-    visualizer.visualize_masks_and_boxes(idx=3, source='pred', tooth_index=None, score_threshold=0.8)
+    visualizer.visualize_masks_and_boxes(source=SOURCE, tooth_index=TOOTH_INDEX, score_threshold=0.8, save_path=SAVE_PATH)
