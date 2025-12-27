@@ -1,5 +1,9 @@
 import torch
 import sys
+import matplotlib.pyplot as plt
+import numpy as np
+from tqdm import tqdm
+from torchvision.ops import box_iou
 from pathlib import Path
 
 FILE = Path(__file__).resolve()
@@ -7,10 +11,6 @@ PROJECT_ROOT = FILE.parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.append(str(PROJECT_ROOT))
 
-import matplotlib.pyplot as plt
-import numpy as np
-from tqdm import tqdm
-from torchvision.ops import box_iou
 from Mask_RCNN.model.mask_rcnn import maskrcnn_resnet50
 from Mask_RCNN.dataset import teeth_dataset
 from Mask_RCNN.dataset.torch_teeth_dataset import TorchTeethDataset
@@ -109,39 +109,41 @@ def evaluate_mAP(model, data_loader, device, num_classes, iou_threshold=0.5):
     aps = []
     valid_classes = [] # Danh sách các class hợp lệ
     pr_data = {} # Dictionary lưu p, r cho từng class
+    max_recall = [] # Danh sách lưu recall cao nhất trong từng class
     
     for cls_id in range(1, num_classes + 1):
         p_boxes = torch.cat(class_data[cls_id]['pred_boxes']) if class_data[cls_id]['pred_boxes'] else torch.tensor([])
-        p_scores = torch.cat(class_data[cls_id]['pred_scores']) if class_data[cls_id]['pred_scores'] else torch.tensor([])
         g_boxes = torch.cat(class_data[cls_id]['gt_boxes']) if class_data[cls_id]['gt_boxes'] else torch.tensor([])
 
         if len(g_boxes) == 0 and len(p_boxes) == 0:
             continue
-        
+
+        p_scores = torch.cat(class_data[cls_id]['pred_scores']) if class_data[cls_id]['pred_scores'] else torch.tensor([])
         ap, prec, rec = calculate_ap_per_class(p_boxes, p_scores, g_boxes, iou_threshold)
         
         aps.append(ap)
         valid_classes.append(cls_id)
         pr_data[cls_id] = {"precision": prec, "recall": rec, "ap": ap}
+        max_recall.append(np.max(rec) if len(rec) > 0 else 0)
         
     if aps:
         mAP = np.mean(aps)
     else:
         mAP = 0.0
 
-    return mAP, aps, valid_classes, pr_data
+    return mAP, aps, valid_classes, pr_data, max_recall
 
-# --- 2. HÀM VẼ BIỂU ĐỒ AP & PR CURVE ---
+# --- 2. HÀM VẼ BIỂU ĐỒ AP & PR CURVE & BIỂU ĐỒ RECALL ---
 
-def plot_mAP_results(aps_input, pr_data, valid_class_names, full_class_names, save_dir="evaluation/evaluation_results"):
+def plot_mAP_results(aps_input, pr_data, max_recall, valid_class_names, full_class_names, save_dir="evaluation/evaluation_results"):
     save_dir = Path(save_dir)
     save_dir.mkdir(parents=True, exist_ok=True)
     
     mAP = np.mean(aps_input)
     
-    # --- BIỂU ĐỒ 1: BAR CHART (Lọc để vẽ) ---    
+    # --- BIỂU ĐỒ 1: AP BAR CHART ---    
     plt.figure(figsize=(15, 6))
-    bars = plt.bar(valid_class_names, aps_input, color='skyblue', edgecolor='navy')
+    ap_bars = plt.bar(valid_class_names, aps_input, color='skyblue', edgecolor='navy')
     
     # Vẽ đường kẻ đỏ dựa trên mAP thực tế (ví dụ: 0.4632)
     plt.axhline(y=mAP, color='r', linestyle='--', label=f'Overall mAP: {mAP:.4f}')
@@ -154,7 +156,7 @@ def plot_mAP_results(aps_input, pr_data, valid_class_names, full_class_names, sa
     plt.grid(axis='y', linestyle='--', alpha=0.5)
     plt.xticks(rotation=90, fontsize=8)
     
-    for bar in bars:
+    for bar in ap_bars:
         yval = bar.get_height()
         plt.text(bar.get_x() + bar.get_width()/2, yval + 0.01, round(yval, 2), 
                  ha='center', va='bottom', fontsize=7, rotation=90)
@@ -196,6 +198,28 @@ def plot_mAP_results(aps_input, pr_data, valid_class_names, full_class_names, sa
     plt.savefig(save_dir / "pr_curve.png", dpi=300)
     print(f"Đã lưu biểu đồ Precision-Recall tại: {save_dir / 'pr_curve.png'}")
     plt.show()
+
+    # --- BIỂU ĐỒ 3: ACCURACY BAR CHART --- 
+    plt.figure(figsize=(15, 6))
+    accuracy_bars = plt.bar(valid_class_names, max_recall, color='skyblue', edgecolor='navy')
+    plt.title('Accuracy per Class')
+    plt.xlabel('Tooth Class')
+    plt.ylabel('Accuracy')
+    plt.ylim(0, 1.1)
+    plt.legend()
+    plt.grid(axis='y', linestyle='--', alpha=0.5)
+    plt.xticks(rotation=90, fontsize=8)
+
+    for bar in accuracy_bars:
+        yval = bar.get_height()
+        plt.text(bar.get_x() + bar.get_width()/2, yval + 0.01, round(yval, 2), 
+                 ha='center', va='bottom', fontsize=7, rotation=90)
+                 
+    plt.tight_layout()
+    plt.savefig(save_dir / "accuracy_barchart.png", dpi=300)
+    print(f"Đã lưu biểu đồ mAP tại: {save_dir / 'accuracy_barchart.png'}")
+    plt.show()
+
 
 # --- 3. MAIN ---
 
