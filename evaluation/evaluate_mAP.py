@@ -56,6 +56,7 @@ def calculate_ap_per_class(pred_boxes, pred_scores, gt_boxes, iou_threshold=0.5)
     
     recalls = tp_cumsum / len(gt_boxes)
     precisions = tp_cumsum / (tp_cumsum + fp_cumsum + 1e-6)
+    accuracy = recalls[-1].item() if len(recalls) else 0
     
     # 5. Làm mượt
     precisions = torch.cat((torch.tensor([1.0]), precisions, torch.tensor([0.0])))
@@ -67,7 +68,7 @@ def calculate_ap_per_class(pred_boxes, pred_scores, gt_boxes, iou_threshold=0.5)
     indices = torch.where(recalls[1:] != recalls[:-1])[0]
     ap = torch.sum((recalls[indices + 1] - recalls[indices]) * precisions[indices + 1])
     
-    return ap.item(), precisions.numpy(), recalls.numpy()
+    return ap.item(), precisions.numpy(), recalls.numpy(), accuracy
 
 def evaluate_mAP(model, data_loader, device, num_classes, iou_threshold=0.5):
     model.eval()
@@ -109,7 +110,7 @@ def evaluate_mAP(model, data_loader, device, num_classes, iou_threshold=0.5):
     aps = []
     valid_classes = [] # Danh sách các class hợp lệ
     pr_data = {} # Dictionary lưu p, r cho từng class
-    max_recall = [] # Danh sách lưu recall cao nhất trong từng class
+    accuracies = [] # Danh sách lưu recall cao nhất trong từng class
     
     for cls_id in range(1, num_classes + 1):
         p_boxes = torch.cat(class_data[cls_id]['pred_boxes']) if class_data[cls_id]['pred_boxes'] else torch.tensor([])
@@ -119,23 +120,23 @@ def evaluate_mAP(model, data_loader, device, num_classes, iou_threshold=0.5):
             continue
 
         p_scores = torch.cat(class_data[cls_id]['pred_scores']) if class_data[cls_id]['pred_scores'] else torch.tensor([])
-        ap, prec, rec = calculate_ap_per_class(p_boxes, p_scores, g_boxes, iou_threshold)
+        ap, prec, rec, accuracy = calculate_ap_per_class(p_boxes, p_scores, g_boxes, iou_threshold)
         
         aps.append(ap)
         valid_classes.append(cls_id)
         pr_data[cls_id] = {"precision": prec, "recall": rec, "ap": ap}
-        max_recall.append(np.max(rec) if len(rec) > 0 else 0)
+        accuracies.append(accuracy)
         
     if aps:
         mAP = np.mean(aps)
     else:
         mAP = 0.0
 
-    return mAP, aps, valid_classes, pr_data, max_recall
+    return mAP, aps, valid_classes, pr_data, accuracies
 
 # --- 2. HÀM VẼ BIỂU ĐỒ AP & PR CURVE & BIỂU ĐỒ RECALL ---
 
-def plot_mAP_results(aps_input, pr_data, max_recall, valid_class_names, full_class_names, save_dir="evaluation/evaluation_results"):
+def plot_mAP_results(aps_input, pr_data, accuracies, valid_class_names, full_class_names, save_dir="evaluation/evaluation_results"):
     save_dir = Path(save_dir)
     save_dir.mkdir(parents=True, exist_ok=True)
     
@@ -201,7 +202,7 @@ def plot_mAP_results(aps_input, pr_data, max_recall, valid_class_names, full_cla
 
     # --- BIỂU ĐỒ 3: ACCURACY BAR CHART --- 
     plt.figure(figsize=(15, 6))
-    accuracy_bars = plt.bar(valid_class_names, max_recall, color='skyblue', edgecolor='navy')
+    accuracy_bars = plt.bar(valid_class_names, accuracies, color='skyblue', edgecolor='navy')
     plt.title('Accuracy per Class')
     plt.xlabel('Tooth Class')
     plt.ylabel('Accuracy')
@@ -247,11 +248,11 @@ def main():
     model.to(device)
 
     # Đánh giá
-    mAP, aps, valid_classes, pr_data, max_recall = evaluate_mAP(model, data_loader, device, num_classes=num_classes-1, iou_threshold=0.5)
+    mAP, aps, valid_classes, pr_data, accuracies = evaluate_mAP(model, data_loader, device, num_classes=num_classes-1, iou_threshold=0.5)
     valid_class_names = [md.class_names[i-1] for i in valid_classes]
 
     # Vẽ đồ thị
-    plot_mAP_results(aps, pr_data, max_recall, valid_class_names, md.class_names)
+    plot_mAP_results(aps, pr_data, accuracies, valid_class_names, md.class_names)
 
     # In kết quả dạng Text
     print(f"\n=== KẾT QUẢ ===")
