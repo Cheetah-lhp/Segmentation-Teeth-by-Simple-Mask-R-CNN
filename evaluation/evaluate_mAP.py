@@ -74,8 +74,8 @@ def evaluate_map(model, data_loader, device, num_classes, iou_threshold=0.5):
     
     # Lưu trữ dữ liệu
     class_data = {i: {'pred_boxes': [], 'pred_scores': [], 'gt_boxes': []} for i in range(1, num_classes + 1)}
-    
-    print("Đang thu thập dữ liệu để tính mAP...")
+    gt_class_counts = {i: 0 for i in range(1, num_classes + 1)}
+
     with torch.no_grad():
         for batch in tqdm(data_loader): 
             if batch is None: continue 
@@ -89,6 +89,12 @@ def evaluate_map(model, data_loader, device, num_classes, iou_threshold=0.5):
                 p_labels = output["labels"].cpu()
                 g_boxes = targets[i]["boxes"].cpu()
                 g_labels = targets[i]["labels"].cpu()
+
+                unique_gt_labels = torch.unique(g_labels)
+                for lbl in unique_gt_labels:
+                    lbl_item = lbl.item()
+                    if lbl_item in gt_class_counts:
+                        gt_class_counts[lbl_item] += 1
                 
                 for cls_id in range(1, num_classes + 1):
                     cls_mask_p = (p_labels == cls_id)
@@ -99,10 +105,13 @@ def evaluate_map(model, data_loader, device, num_classes, iou_threshold=0.5):
 
     # Tính AP và lưu Precision/Recall cho từng class
     aps = []
+    valid_classes = [] # Danh sách các class hợp lệ
     pr_data = {} # Dictionary lưu p, r cho từng class
     
-    # print("\n--- KẾT QUẢ AP TỪNG CLASS ---")
     for cls_id in range(1, num_classes + 1):
+        if gt_class_counts[cls_id] == 0:
+            continue
+
         p_boxes = torch.cat(class_data[cls_id]['pred_boxes']) if class_data[cls_id]['pred_boxes'] else torch.tensor([])
         p_scores = torch.cat(class_data[cls_id]['pred_scores']) if class_data[cls_id]['pred_scores'] else torch.tensor([])
         g_boxes = torch.cat(class_data[cls_id]['gt_boxes']) if class_data[cls_id]['gt_boxes'] else torch.tensor([])
@@ -110,12 +119,15 @@ def evaluate_map(model, data_loader, device, num_classes, iou_threshold=0.5):
         ap, prec, rec = calculate_ap_per_class(p_boxes, p_scores, g_boxes, iou_threshold)
         
         aps.append(ap)
+        valid_classes.append(cls_id)
         pr_data[cls_id] = {"precision": prec, "recall": rec, "ap": ap}
         
-    #     print(f"Class {cls_id}: AP@{iou_threshold} = {ap:.4f}")
-        
-    mAP = np.mean(aps)
-    return mAP, aps, pr_data
+    if aps:
+        mAP = np.mean(aps)
+    else:
+        mAP = 0.0
+
+    return mAP, aps, valid_classes, pr_data
 
 # --- 2. HÀM VẼ BIỂU ĐỒ AP & PR CURVE ---
 
@@ -158,7 +170,7 @@ def plot_map_results(aps_input, pr_data, class_names, save_dir="evaluation/evalu
                  ha='center', va='bottom', fontsize=7, rotation=90)
                  
     plt.tight_layout()
-    plt.savefig(save_dir / "map_barchart.png", dpi=300)
+    plt.savefig(save_dir / "mAP_barchart.png", dpi=300)
     print(f"Đã lưu biểu đồ mAP tại: {save_dir / 'map_barchart.png'}")
     plt.show()
 
@@ -222,10 +234,11 @@ def main():
     model.to(device)
 
     # Đánh giá
-    mAP, aps, pr_data = evaluate_map(model, data_loader, device, num_classes=num_classes-1, iou_threshold=0.5)
-    
+    mAP, aps, valid_classes, pr_data = evaluate_map(model, data_loader, device, num_classes=num_classes-1, iou_threshold=0.5)
+    valid_class_names = [md.class_names[i-1] for i in valid_classes]
+
     # Vẽ đồ thị
-    plot_map_results(aps, pr_data, md.class_names)
+    plot_map_results(aps, pr_data, valid_class_names)
 
     # In kết quả dạng Text
     print(f"\n=== KẾT QUẢ ===")
