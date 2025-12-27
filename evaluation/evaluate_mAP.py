@@ -24,7 +24,6 @@ def calculate_ap_per_class(pred_boxes, pred_scores, gt_boxes, iou_threshold=0.5)
     Tính Average Precision (AP) và trả về cả Precision/Recall arrays.
     """
     if len(gt_boxes) == 0:
-        # Nếu không có GT, trả về mảng rỗng hoặc giá trị mặc định
         return 0.0, np.array([0., 1.]), np.array([0., 0.]) 
     
     if len(pred_boxes) == 0:
