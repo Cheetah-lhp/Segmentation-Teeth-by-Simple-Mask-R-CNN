@@ -247,11 +247,11 @@ def main():
     model.to(device)
 
     # Đánh giá
-    mAP, aps, valid_classes, pr_data = evaluate_mAP(model, data_loader, device, num_classes=num_classes-1, iou_threshold=0.5)
+    mAP, aps, valid_classes, pr_data, max_recall = evaluate_mAP(model, data_loader, device, num_classes=num_classes-1, iou_threshold=0.5)
     valid_class_names = [md.class_names[i-1] for i in valid_classes]
 
     # Vẽ đồ thị
-    plot_mAP_results(aps, pr_data, valid_class_names, md.class_names)
+    plot_mAP_results(aps, pr_data, max_recall, valid_class_names, md.class_names)
 
     # In kết quả dạng Text
     print(f"\n=== KẾT QUẢ ===")
