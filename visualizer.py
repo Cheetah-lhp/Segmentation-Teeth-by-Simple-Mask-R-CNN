@@ -191,7 +191,7 @@ if __name__ == "__main__":
     md = TeethDataset()
     md.load_teeth(DIR, "train", ANNOTATION_DIR)
     md.prepare()
-    dataset = TorchTeethDataset(md, max_size=1333)
+    dataset = TorchTeethDataset(md, max_size=1333, is_train=False)
     
     num_classes = md.num_classes + 1
     # WEIGHTS_PATH = os.path.join(ROOT_DIR, "data/weights_ETE_train/maskrcnn_epoch40.pth")

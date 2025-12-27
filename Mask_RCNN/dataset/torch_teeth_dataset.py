@@ -7,9 +7,10 @@ from utils.converter import polygons2mask
 from Mask_RCNN.dataset.augmentor import TeethAugmentor
 
 class TorchTeethDataset(Dataset):
-    def __init__(self, mrcnn_dataset: TeethDataset, max_size=1333):
+    def __init__(self, mrcnn_dataset: TeethDataset, max_size=1333, augmentation=False):
         self.mds = mrcnn_dataset       # matterport dataset
         self.max_size = max_size
+        self.augmentation = augmentation
         self.rare_augmentor = TeethAugmentor()
 
     def __len__(self):
@@ -46,7 +47,7 @@ class TorchTeethDataset(Dataset):
 
         # 4. THỰC HIỆN AUGMENTATION
         # (Nếu không có object nào, bỏ qua augment để tránh lỗi)
-        if len(orig_bboxes) > 0:
+        if self.augmentation and len(orig_bboxes) > 0:
             img_np, aug_masks, aug_bboxes, aug_labels = self.rare_augmentor(image=img_np, masks=orig_masks, bboxes=orig_bboxes, labels=orig_labels)
         else:
             aug_masks, aug_bboxes, aug_labels = orig_masks, orig_bboxes, orig_labels
@@ -105,7 +106,4 @@ class TorchTeethDataset(Dataset):
             "masks": masks.float()
         }
 
-        if len(all_boxes) == 0:
-            return None
-            
         return image_tensor, target

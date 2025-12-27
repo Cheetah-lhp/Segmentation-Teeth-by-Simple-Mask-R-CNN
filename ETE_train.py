@@ -116,12 +116,12 @@ def main():
     md_train = TeethDataset()
     md_train.load_teeth(DIR, "train", ANNOTATION_DIR)
     md_train.prepare()
-    train_set = TorchTeethDataset(md_train, max_size=1333)
+    train_set = TorchTeethDataset(md_train, max_size=1333, augmentation=True)
 
     md_val = TeethDataset()
     md_val.load_teeth(DIR, "val", ANNOTATION_DIR)
     md_val.prepare()
-    val_set = TorchTeethDataset(md_val, max_size=1333)
+    val_set = TorchTeethDataset(md_val, max_size=1333, augmentation=False)
 
 
     """batch_size: so luong sample (anh) duoc dua vao model trong 1 lan forward+backward"""
@@ -134,15 +134,12 @@ def main():
     model.to(device)
 
     optimizer = optim.Adam(model.parameters(), lr=1e-4)
-    warmup_epochs = 5
     num_epochs = 60
+    warmup_epochs = 5
 
-    # 1. Scheduler tăng dần (Warmup)
     warmup_sch = torch.optim.lr_scheduler.LinearLR(optimizer, start_factor=0.1, total_iters=warmup_epochs)
-    # 2. Scheduler giảm dần (Cosine)
-    cosine_sch = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=(num_epochs - warmup_epochs), eta_min=1e-6)
-    # Kết hợp cả 2
-    scheduler = torch.optim.lr_scheduler.SequentialLR(optimizer, schedulers=[warmup_sch, cosine_sch], milestones=[warmup_epochs])
+    multistep_sch = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[35,50], gamma=0.1)
+    scheduler = torch.optim.lr_scheduler.SequentialLR(optimizer, schedulers=[warmup_sch, multistep_sch], milestones=[warmup_epochs])
 
     LOG_DIR = os.path.join(ROOT_DIR, "logs")
     os.makedirs(LOG_DIR, exist_ok=True)
