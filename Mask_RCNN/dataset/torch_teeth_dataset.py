@@ -28,10 +28,14 @@ class TorchTeethDataset(Dataset):
 
     def process_image(self, img_np, masks, bboxes, labels):
         h, w = img_np.shape[:2]
-        scale = self.max_size / max(w, h)
-        new_w, new_h = int(w * scale), int(h * scale)
-        
-        image_resized = cv2.resize(img_np, (new_w, new_h))
+
+        if self.max_size:
+            scale = self.max_size / max(w, h)
+            new_w, new_h = int(w * scale), int(h * scale)
+            image_resized = cv2.resize(img_np, (new_w, new_h))
+        else:
+            new_w, new_h = w, h
+            image_resized = img_np
         image_tensor = torch.from_numpy(image_resized).permute(2, 0, 1).float() / 255.0
 
         all_masks = []
@@ -39,8 +43,12 @@ class TorchTeethDataset(Dataset):
         all_labels = []
 
         for m, b, l in zip(masks, bboxes, labels):
-            m_resized = cv2.resize(m, (new_w, new_h), interpolation=cv2.INTER_NEAREST)
-            scaled_bbox = [b[0] * scale, b[1] * scale, b[2] * scale, b[3] * scale]
+            if self.max_size:
+                m_resized = cv2.resize(m, (new_w, new_h), interpolation=cv2.INTER_NEAREST)
+                scaled_bbox = [b[0] * scale, b[1] * scale, b[2] * scale, b[3] * scale]
+            else:
+                m_resized = m
+                scaled_bbox = b
             all_masks.append(m_resized)
             all_boxes.append(scaled_bbox)
             all_labels.append(l)
@@ -99,6 +107,9 @@ class TorchTeethDataset(Dataset):
         if original_sample is not None:
             samples.append(original_sample)
 
+        if (not self.max_size):
+            return samples
+        
         # 2. Xử lý ảnh AUGMENTATION (nếu đủ điều kiện epoch)
         if self.augmentation and self.current_epoch >= self.start_aug_epoch and len(orig_bboxes) > 0:
             aug_img, aug_masks, aug_bboxes, aug_labels = self.augmentor(
