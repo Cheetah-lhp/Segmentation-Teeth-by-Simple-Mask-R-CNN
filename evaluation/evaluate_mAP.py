@@ -24,10 +24,10 @@ def calculate_ap_per_class(pred_boxes, pred_scores, gt_boxes, iou_threshold=0.5)
     Tính Average Precision (AP) và trả về cả Precision/Recall arrays.
     """
     if len(gt_boxes) == 0:
-        return 0.0, np.array([0., 1.]), np.array([0., 0.]) 
+        return 0.0, np.array([0., 1.]), np.array([0., 0.]), 0.0 
     
     if len(pred_boxes) == 0:
-        return 0.0, np.array([0., 1.]), np.array([0., 0.])
+        return 0.0, np.array([0., 1.]), np.array([0., 0.]), 0.0
 
     # 1. Sắp xếp dự đoán theo điểm tin cậy giảm dần
     sorted_indices = torch.argsort(pred_scores, descending=True)
@@ -119,6 +119,7 @@ def evaluate_mAP(model, data_loader, device, num_classes, iou_threshold=0.5):
             continue
 
         p_scores = torch.cat(class_data[cls_id]['pred_scores']) if class_data[cls_id]['pred_scores'] else torch.tensor([])
+        
         ap, prec, rec, accuracy = calculate_ap_per_class(p_boxes, p_scores, g_boxes, iou_threshold)
         
         aps.append(ap)
@@ -200,8 +201,11 @@ def plot_mAP_results(aps_input, pr_data, accuracies, valid_class_names, full_cla
     plt.show()
 
     # --- BIỂU ĐỒ 3: ACCURACY BAR CHART --- 
+    Acc = np.mean(accuracies)
     plt.figure(figsize=(15, 6))
     accuracy_bars = plt.bar(valid_class_names, accuracies, color='skyblue', edgecolor='navy')
+    plt.axhline(y=mAP, color='r', linestyle='--', label=f'Overall Acc: {Acc:.4f}')
+
     plt.title('Accuracy per Class')
     plt.xlabel('Tooth Class')
     plt.ylabel('Accuracy')
@@ -228,9 +232,9 @@ def main():
 
     # ĐƯỜNG DẪN dỮ LIỆU
     ROOT_DIR = PROJECT_ROOT / "data"
-    DIR = ROOT_DIR / "general_Radiographs"
-    ANN = ROOT_DIR / "general_Segmentation/teeth_polygon.json"
-    WEIGHTS_PATH = "data/weights_ETE_train/maskrcnn_epoch60.pth" 
+    DIR = ROOT_DIR / "Radiographs"
+    ANN = ROOT_DIR / "Segmentation/teeth_polygon.json"
+    WEIGHTS_PATH = "data/weights_ETE_train/maskrcnn_epoch34.pth" 
 
     # Load Data
     md = teeth_dataset.TeethDataset()
@@ -256,6 +260,7 @@ def main():
     # In kết quả dạng Text
     print(f"\n=== KẾT QUẢ ===")
     print(f"mAP: {mAP:.4f}")
+    print(f"Acc: {np.mean(accuracies):.4f}")
 
 if __name__ == "__main__":
     main()
