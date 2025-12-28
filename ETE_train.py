@@ -110,8 +110,8 @@ def main():
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
     ROOT_DIR = os.path.abspath("./")
-    DIR = os.path.join(ROOT_DIR, "data/general_Radiographs")
-    ANNOTATION_DIR = os.path.join(ROOT_DIR, "data/general_Segmentation/teeth_polygon.json")
+    DIR = os.path.join(ROOT_DIR, "data/Radiographs")
+    ANNOTATION_DIR = os.path.join(ROOT_DIR, "data/Segmentation/teeth_polygon.json")
 
     md_train = TeethDataset()
     md_train.load_teeth(DIR, "train", ANNOTATION_DIR)
@@ -140,7 +140,7 @@ def main():
     warmup_sch = torch.optim.lr_scheduler.LinearLR(optimizer, start_factor=0.1, total_iters=warmup_epochs)
     multistep_sch = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[35,50], gamma=0.1)
     scheduler = torch.optim.lr_scheduler.SequentialLR(optimizer, schedulers=[warmup_sch, multistep_sch], milestones=[warmup_epochs])
-
+    
     LOG_DIR = os.path.join(ROOT_DIR, "logs")
     os.makedirs(LOG_DIR, exist_ok=True)
     LOG_FILE = os.path.join(LOG_DIR, "train_log.csv")
