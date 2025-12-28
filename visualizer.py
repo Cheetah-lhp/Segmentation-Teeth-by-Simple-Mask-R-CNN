@@ -28,10 +28,11 @@ class TeethVisualizer:
         image_tensor, target = self.dataset[idx]
         # Determine the model's current device (e.g., 'cuda:0' or 'cpu')
         # This is a robust way to find the device.
-        model_device = next(self.model.parameters()).device
+        if (self.model):
+            model_device = next(self.model.parameters()).device
         
-        # --- FIX: Move image tensor to the model's device ---
-        image_tensor = image_tensor.to(model_device)
+            # --- FIX: Move image tensor to the model's device ---
+            image_tensor = image_tensor.to(model_device)
         _, H, W = image_tensor.shape
         print(f"Input Max: {image_tensor.max().item()}, Min: {image_tensor.min().item()}")
         # The model expects a list of tensors (batch of size 1)
@@ -191,12 +192,12 @@ if __name__ == "__main__":
     md = TeethDataset()
     md.load_teeth(DIR, "train", ANNOTATION_DIR)
     md.prepare()
-    dataset = TorchTeethDataset(md, max_size=1333, is_train=False)
+    dataset = TorchTeethDataset(md, max_size=1333)
     
     num_classes = md.num_classes + 1
     # WEIGHTS_PATH = os.path.join(ROOT_DIR, "data/weights_ETE_train/maskrcnn_epoch40.pth")
     # model = maskrcnn_resnet50(pretrained=False, num_classes=num_classes)
-    WEIGHTS_PATH = os.path.join(ROOT_DIR, "data/weights_ETE_train/maskrcnn_epoch58.pth")
+    WEIGHTS_PATH = os.path.join(ROOT_DIR, "data/weights_ETE_train/maskrcnn_epoch34.pth")
     model = maskrcnn_resnet50(pretrained=False, num_classes=num_classes)
      
     model.load_state_dict(torch.load(WEIGHTS_PATH, map_location=device, weights_only=True))
@@ -208,6 +209,4 @@ if __name__ == "__main__":
     #idx: index của ảnh trong dataset
     #tooth_index: index của răng muốn hiển thị (bắt đầu từ 0). None để hiển thị tất cả răng
     #score_threshold: ngưỡng điểm số để lọc dự đoán (chỉ áp dụng khi source='pred')
-    visualizer.visualize_masks_and_boxes(idx=1, source='pred', tooth_index=None, score_threshold=0.8)
-
-    
+    visualizer.visualize_masks_and_boxes(idx=3, source='pred', tooth_index=None, score_threshold=0.8)

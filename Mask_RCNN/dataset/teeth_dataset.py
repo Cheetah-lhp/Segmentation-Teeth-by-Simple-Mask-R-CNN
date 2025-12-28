@@ -12,10 +12,6 @@ class TeethDataset:
         self.class_info = []
         self._image_ids = []
 
-        ### Mapping cho cac label khong phai so
-        self.non_num_map = {}
-        self.next_label = 100
-
     def add_class(self, source, class_id, class_name):
         # Avoid duplicates
         for info in self.class_info:
@@ -39,6 +35,10 @@ class TeethDataset:
     def load_teeth(self, dataset_dir, subset, annotation_json):
         assert subset in ["train", "test", "val"]
         subset_dir = os.path.join(dataset_dir, subset)
+
+        # Linux Case-Sensitivity - Map actual filenames on disk
+        # Creates map: {'45.jpg': '45.JPG'}
+        actual_files = {f.lower(): f for f in os.listdir(subset_dir)}
 
         with open(annotation_json) as f:
             annotations = json.load(f)
@@ -69,25 +69,16 @@ class TeethDataset:
 
         # Add image entries
         for item in annotations:
-            filename = os.path.basename(item["External ID"]).strip()
+            filename = item["External ID"]
+            filename_lower = filename.lower()
 
-            candidates = [
-                filename,
-                filename.lower(),
-                filename.upper()
-            ]
-
-            image_path = None
-            for fname in candidates:
-                p = os.path.join(subset_dir, fname)
-                if os.path.exists(p):
-                    image_path = p
-                    break
-
-            if image_path is None:
-                print("[SKIP IMAGE]", filename)
+            # Linux Case-Sensitivity Check
+            if filename_lower not in actual_files:
                 continue
 
+            real_filename = actual_files[filename_lower]
+
+            image_path = os.path.join(subset_dir, real_filename)
             objects = []
             for obj in item["Label"]["objects"]:
                 title = str(obj["title"]).strip()
@@ -109,7 +100,6 @@ class TeethDataset:
                 height=height,
                 objects=objects
             )
-
 
     def prepare(self):
         self.num_classes = len(self.class_info)
