@@ -28,7 +28,13 @@ class TeethVisualizer:
     def _get_processed_data(self, idx: int):
         """Fetches and processes data from dataset and model for a given index."""
         
-        image_tensor, target = self.dataset[idx]
+        raw_data = self.dataset[idx]
+        
+        if isinstance(raw_data, list):
+            image_tensor, target = raw_data[0]
+        else:
+            # Trường hợp dataset cũ hoặc trả về trực tiếp tuple
+            image_tensor, target = raw_data
         # Determine the model's current device (e.g., 'cuda:0' or 'cpu')
         # This is a robust way to find the device.
         if (self.model):
