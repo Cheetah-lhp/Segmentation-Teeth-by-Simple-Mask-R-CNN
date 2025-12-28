@@ -173,7 +173,7 @@ def main():
     ROOT_DIR = PROJECT_ROOT / "data"
     DIR = ROOT_DIR / "general_Radiographs"
     ANN = ROOT_DIR / "general_Segmentation/teeth_polygon.json"
-    WEIGHTS_PATH = "data/weights_ETE_train/maskrcnn_epoch60.pth" 
+    WEIGHTS_PATH = "data/weights_ETE_train/maskrcnn_epoch_best.pth" 
 
     # Load Data
     md = teeth_dataset.TeethDataset()

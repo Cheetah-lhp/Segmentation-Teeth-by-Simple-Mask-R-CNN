@@ -8,38 +8,29 @@ from Mask_RCNN.dataset import TeethDataset, TorchTeethDataset
 import torch.optim as optim
 
 def collate_fn(batch):
-    # Lọc bỏ những sample mà target không có boxes (răng)
-    batch = [b for b in batch if b is not None and b[1]["boxes"].numel() > 0]
-    if len(batch) == 0:
+    # batch là list các list sample: [[orig1, aug1], [orig2], [orig3, aug3], ...]
+    # hoặc [None, [orig2], None, ...] nếu __getitem__ trả về None
+    
+    # Làm phẳng list và lọc bỏ None
+    flat_batch = []
+    for item_list in batch:
+        if item_list is not None:
+            for item in item_list:
+                if item is not None:
+                    flat_batch.append(item)
+    
+    if len(flat_batch) == 0:
         return None # Trả về None nếu cả batch toàn ảnh trống
-    return tuple(zip(*batch))
+    
+    return tuple(zip(*flat_batch))
 
-"""ham bat buoc co trong cac bai segmentation nhieu vat the:
-        dua 1 batch tu dang: 
-            [
-                (image1, target1),
-                (image2, target2),
-                (image3, target3)
-            ]
-        ve 1 tensor duy nhat:
-            (
-                (image1, image2, image3),      # tuple chua cac anh
-                (target1, target2, target3)    # tuple chua cac target
-            )
-"""
 #-------------------------train_epoch-----------------------------------------------------------------------------
 def train_one_epoch(model, optimizer, data_loader, device):
     model.train()
-
     loss_sums = {
-        "roi_classifier_loss": 0.0,
-        "roi_box_loss": 0.0,
-        "roi_mask_loss": 0.0,
-        "rpn_objectness_loss": 0.0,
-        "rpn_box_loss": 0.0,
-        "total_loss": 0.0
+        "roi_classifier_loss": 0.0, "roi_box_loss": 0.0, "roi_mask_loss": 0.0,
+        "rpn_objectness_loss": 0.0, "rpn_box_loss": 0.0, "total_loss": 0.0
     }
-
     num_batches = 0
 
     for data in data_loader:
@@ -53,9 +44,9 @@ def train_one_epoch(model, optimizer, data_loader, device):
         loss_dict = model(images, targets)
         total_loss = sum(loss for loss in loss_dict.values())
 
-        optimizer.zero_grad()
-        total_loss.backward()
-        optimizer.step()
+        optimizer.zero_grad() 
+        total_loss.backward() 
+        optimizer.step()    
 
         for k in loss_dict:
             loss_sums[k] += loss_dict[k].item()
@@ -64,7 +55,7 @@ def train_one_epoch(model, optimizer, data_loader, device):
         num_batches += 1
 
     for k in loss_sums:
-        loss_sums[k] /= num_batches
+        loss_sums[k] /= max(num_batches, 1)
 
     return loss_sums
 
@@ -110,13 +101,13 @@ def main():
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
     ROOT_DIR = os.path.abspath("./")
-    DIR = os.path.join(ROOT_DIR, "data/Radiographs")
-    ANNOTATION_DIR = os.path.join(ROOT_DIR, "data/Segmentation/teeth_polygon.json")
+    DIR = os.path.join(ROOT_DIR, "data/general_Radiographs")
+    ANNOTATION_DIR = os.path.join(ROOT_DIR, "data/general_Segmentation/teeth_polygon.json")
 
     md_train = TeethDataset()
     md_train.load_teeth(DIR, "train", ANNOTATION_DIR)
     md_train.prepare()
-    train_set = TorchTeethDataset(md_train, max_size=1333, augmentation=True)
+    train_set = TorchTeethDataset(md_train, max_size=1333, augmentation=True, start_aug_epoch=10)
 
     md_val = TeethDataset()
     md_val.load_teeth(DIR, "val", ANNOTATION_DIR)
@@ -180,6 +171,7 @@ def main():
     #--------------------------------------------epoch---------------------------------------------------------------
     for epoch in range(num_epochs):
         start_time = time.time()
+        train_set.set_epoch(epoch + 1)
 
         train_loss = train_one_epoch(model, optimizer, train_loader, device)
         val_loss = valid_one_epoch(model, val_loader, device)

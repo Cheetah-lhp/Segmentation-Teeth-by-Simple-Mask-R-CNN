@@ -198,8 +198,8 @@ class TeethVisualizer:
 if __name__ == "__main__":
 
     ROOT_DIR = os.path.abspath("./")
-    DIR = os.path.join(ROOT_DIR, "data/Radiographs")
-    ANNOTATION_DIR = os.path.join(ROOT_DIR, "data/Segmentation/teeth_polygon.json")
+    DIR = os.path.join(ROOT_DIR, "data/general_Radiographs")
+    ANNOTATION_DIR = os.path.join(ROOT_DIR, "data/general_Segmentation/teeth_polygon.json")
     WEIGHTS_PATH = os.path.join(ROOT_DIR, "data/weights_ETE_train/maskrcnn_epoch34.pth")
 
     #----------------------------------------------------
