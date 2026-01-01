@@ -6,6 +6,9 @@ import torch, matplotlib, os
 from skimage.segmentation import find_boundaries
 import skimage
 from Mask_RCNN.model.mask_rcnn import maskrcnn_resnet50
+from torchvision.models.detection import maskrcnn_resnet50_fpn
+from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
+from torchvision.models.detection.mask_rcnn import MaskRCNNPredictor
 
 class TeethVisualizer:
     """
@@ -18,7 +21,14 @@ class TeethVisualizer:
         if self.model:
             self.model.eval()
             # Get num_classes from the model's classification head
-            self.num_classes = self.model.head.box_predictor.cls_score.out_features
+            if hasattr(self.model, 'head'):
+                # Custom Model (ETE)
+                self.num_classes = self.model.head.box_predictor.cls_score.out_features
+            elif hasattr(self.model, 'roi_heads'):
+                # Torchvision Model (Baseline)
+                self.num_classes = self.model.roi_heads.box_predictor.cls_score.out_features
+            else:
+                raise AttributeError("Không nhận diện được cấu trúc model (không có 'head' hoặc 'roi_heads')")
         else:
             self.num_classes = len(self.dataset.mds.class_info)
         self.class_map = self.dataset.mds.class_info
@@ -264,15 +274,15 @@ class TeethVisualizer:
 if __name__ == "__main__":
 
     ROOT_DIR = os.path.abspath("./")
-    DIR = os.path.join(ROOT_DIR, "data/Radiographs")
-    ANNOTATION_DIR = os.path.join(ROOT_DIR, "data/Segmentation/teeth_polygon.json")
-    WEIGHTS_PATH = os.path.join(ROOT_DIR, "data/weights_ETE_train/maskrcnn_epoch34.pth")
+    DIR = os.path.join(ROOT_DIR, "data/general_Radiographs")
+    ANNOTATION_DIR = os.path.join(ROOT_DIR, "data/general_Segmentation/teeth_polygon.json")
+    WEIGHTS_PATH = os.path.join(ROOT_DIR, "data/weights_ETE_train/baseline_epoch56.pth")
 
     #----------------------------------------------------
     SAVE_PATH = os.path.join(ROOT_DIR, "data/result.png")
     # SAVE_PATH = None
     TOOTH_INDEX = None
-    IMAGE_NUMBER = 7
+    IMAGE_NUMBER = 991
     SOURCE = 'pred'
     PRETTIER = True
     # ---------------------------------------------------
@@ -280,15 +290,36 @@ if __name__ == "__main__":
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
     md = TeethDataset()
-    md.load_image(os.path.join(DIR, f"train/{IMAGE_NUMBER}.JPG"), ANNOTATION_DIR)
+    md.load_image(os.path.join(DIR, f"test/{IMAGE_NUMBER}.JPG"), ANNOTATION_DIR)
+    md.prepare() 
     dataset = TorchTeethDataset(md, max_size=None)
     
+    num_classes = md.num_classes + 1 
     checkpoint = torch.load(WEIGHTS_PATH, map_location=device, weights_only=True)
-    if 'head.box_predictor.cls_score.weight' in checkpoint:
-        num_classes = checkpoint['head.box_predictor.cls_score.weight'].shape[0]
-    model = maskrcnn_resnet50(pretrained=False, num_classes=num_classes)
-    model.load_state_dict(checkpoint)
+
+    if isinstance(checkpoint, dict) and 'model_state_dict' in checkpoint:
+        state_dict = checkpoint['model_state_dict']
+    else:
+        state_dict = checkpoint
+
+    if 'head.box_predictor.cls_score.weight' in state_dict:
+        num_classes = state_dict['head.box_predictor.cls_score.weight'].shape[0]
+    elif 'roi_heads.box_predictor.cls_score.weight' in state_dict:
+        num_classes = state_dict['roi_heads.box_predictor.cls_score.weight'].shape[0]
+
+    #custom model    
+    # model = maskrcnn_resnet50(pretrained=False, num_classes=num_classes)
+    # model.load_state_dict(checkpoint)
+    # model.to(device)
+
+    #pytorch baseline model
+    model = maskrcnn_resnet50_fpn(weights=None)
+    in_features = model.roi_heads.box_predictor.cls_score.in_features
+    model.roi_heads.box_predictor = FastRCNNPredictor(in_features, num_classes)
+    in_features_mask = model.roi_heads.mask_predictor.conv5_mask.in_channels
+    model.roi_heads.mask_predictor = MaskRCNNPredictor(in_features_mask, 256, num_classes)
+    model.load_state_dict(torch.load(WEIGHTS_PATH, map_location=device))
     model.to(device)
-    
+
     visualizer = TeethVisualizer(dataset=dataset, model=model)
     visualizer.visualize_masks_and_boxes(source=SOURCE, tooth_index=TOOTH_INDEX, score_threshold=0.8, save_path=SAVE_PATH, prettier=PRETTIER)

@@ -31,28 +31,36 @@ def train_one_epoch(model, optimizer, data_loader, device):
         "roi_classifier_loss": 0.0, "roi_box_loss": 0.0, "roi_mask_loss": 0.0,
         "rpn_objectness_loss": 0.0, "rpn_box_loss": 0.0, "total_loss": 0.0
     }
+
     num_batches = 0
 
     for data in data_loader:
         if data is None:
             continue
 
-        images, targets = data
-        images = [img.to(device) for img in images]
-        targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
+        images_batch, targets_batch = data
+        
+        for i in range(len(images_batch)):
+            img = images_batch[i].to(device)
+            target = {k: v.to(device) for k, v in targets_batch[i].items()}
 
-        loss_dict = model(images, targets)
-        total_loss = sum(loss for loss in loss_dict.values())
+            loss_dict = model([img], [target])
+            total_loss = sum(loss for loss in loss_dict.values())
 
-        optimizer.zero_grad() 
-        total_loss.backward() 
-        optimizer.step()    
+            if not torch.isfinite(total_loss):
+                print(f"Loss is {total_loss}, skipping this image.")
+                continue
 
-        for k in loss_dict:
-            loss_sums[k] += loss_dict[k].item()
+            optimizer.zero_grad()       
+            total_loss.backward()       
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=5.0)
+            optimizer.step()            
 
-        loss_sums["total_loss"] += total_loss.item()
-        num_batches += 1
+
+            for k in loss_dict:
+                loss_sums[k] += loss_dict[k].item()
+            loss_sums["total_loss"] += total_loss.item()
+            num_batches += 1
 
     for k in loss_sums:
         loss_sums[k] /= max(num_batches, 1)

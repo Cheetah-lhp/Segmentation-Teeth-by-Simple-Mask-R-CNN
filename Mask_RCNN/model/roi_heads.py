@@ -17,7 +17,7 @@ def fastrcnn_loss(class_logits, box_regression, label, regression_targets):
     weights = torch.ones(num_classes).to(device)
     
     rare_ids = [1, 16] + list(range(33, 53))
-    weights[rare_ids] = 5.0 # Phạt nặng gấp 5 lần nếu sai răng hiếm
+    weights[rare_ids] = 2.0 # Phạt nặng gấp 5 lần nếu sai răng hiếm
     classification_loss = F.cross_entropy(class_logits, label, weight=weights)
 
     pos_idx = torch.where(label > 0)[0]
@@ -38,23 +38,23 @@ def fastrcnn_loss(class_logits, box_regression, label, regression_targets):
 """output:  classification_loss: float (scalar)
             box_reg_loss: float (scalar)"""
 
-def tversky_loss(inputs, targets, alpha=0.3, beta=0.7, smooth=1.0):
-    """
-    alpha: Trọng số cho False Positives (FP)
-    beta: Trọng số cho False Negatives (FN) -> Tăng beta để giảm bỏ sót răng.
-    """
-    inputs = torch.sigmoid(inputs) # Chuyển Logits về xác suất [0, 1]
-    inputs = inputs.view(-1)
-    targets = targets.view(-1)
+# def tversky_loss(inputs, targets, alpha=0.3, beta=0.7, smooth=1.0):
+#     """
+#     alpha: Trọng số cho False Positives (FP)
+#     beta: Trọng số cho False Negatives (FN) -> Tăng beta để giảm bỏ sót răng.
+#     """
+#     inputs = torch.sigmoid(inputs) # Chuyển Logits về xác suất [0, 1]
+#     inputs = inputs.view(-1)
+#     targets = targets.view(-1)
     
-    # True Positives (TP), False Positives (FP), False Negatives (FN)
-    TP = (inputs * targets).sum()    
-    FP = (inputs * (1 - targets)).sum()
-    FN = ((1 - inputs) * targets).sum()
+#     # True Positives (TP), False Positives (FP), False Negatives (FN)
+#     TP = (inputs * targets).sum()    
+#     FP = (inputs * (1 - targets)).sum()
+#     FN = ((1 - inputs) * targets).sum()
     
-    tversky = (TP + smooth) / (TP + alpha * FP + beta * FN + smooth)  
+#     tversky = (TP + smooth) / (TP + alpha * FP + beta * FN + smooth)  
     
-    return 1 - tversky
+#     return 1 - tversky
 
 def maskrcnn_loss(mask_logit, proposal, matched_idx, label, gt_mask):
     matched_idx = matched_idx[:, None].to(proposal)
@@ -69,9 +69,9 @@ def maskrcnn_loss(mask_logit, proposal, matched_idx, label, gt_mask):
     relevant_logits = mask_logit[idx, label]
     bce_loss = F.binary_cross_entropy_with_logits(relevant_logits, mask_target)
     # d_loss = dice_loss(relevant_logits, mask_target)
-    t_loss = tversky_loss(relevant_logits, mask_target, alpha=0.3, beta=0.7)
+    # t_loss = tversky_loss(relevant_logits, mask_target, alpha=0.3, beta=0.7)
 
-    return bce_loss + t_loss
+    return bce_loss # + t_loss
 """output: mask_loss: float (scalar)"""
 
 class RoIHeads(nn.Module):

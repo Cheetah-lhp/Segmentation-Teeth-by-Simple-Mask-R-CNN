@@ -15,6 +15,9 @@ from Mask_RCNN.model.mask_rcnn import maskrcnn_resnet50
 from Mask_RCNN.dataset import teeth_dataset
 from Mask_RCNN.dataset.torch_teeth_dataset import TorchTeethDataset
 from ETE_train import collate_fn
+from torchvision.models.detection import maskrcnn_resnet50_fpn
+from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
+from torchvision.models.detection.mask_rcnn import MaskRCNNPredictor
 
 # --- 1. CÁC HÀM TÍNH TOÁN ---
 
@@ -173,7 +176,7 @@ def main():
     ROOT_DIR = PROJECT_ROOT / "data"
     DIR = ROOT_DIR / "general_Radiographs"
     ANN = ROOT_DIR / "general_Segmentation/teeth_polygon.json"
-    WEIGHTS_PATH = "data/weights_ETE_train/maskrcnn_epoch_best.pth" 
+    WEIGHTS_PATH = "data/weights_ETE_train/baseline_epoch56.pth" 
 
     # Load Data
     md = teeth_dataset.TeethDataset()
@@ -187,8 +190,20 @@ def main():
 
     # Load Model
     num_classes = md.num_classes + 1
-    model = maskrcnn_resnet50(pretrained=True, num_classes=num_classes)
-    model.load_state_dict(torch.load(WEIGHTS_PATH, map_location=device, weights_only=True))
+
+    # model tự train
+    # model = maskrcnn_resnet50(pretrained=True, num_classes=num_classes)
+    # model.load_state_dict(torch.load(WEIGHTS_PATH, map_location=device, weights_only=True))
+    # model.to(device)
+
+    #model baseline
+    model = maskrcnn_resnet50_fpn(weights=None)
+    in_features = model.roi_heads.box_predictor.cls_score.in_features
+    model.roi_heads.box_predictor = FastRCNNPredictor(in_features, num_classes)
+    in_features_mask = model.roi_heads.mask_predictor.conv5_mask.in_channels
+    model.roi_heads.mask_predictor = MaskRCNNPredictor(in_features_mask, 256, num_classes)
+    print(f"Loading weights from: {WEIGHTS_PATH}")
+    model.load_state_dict(torch.load(WEIGHTS_PATH, map_location=device))
     model.to(device)
 
     # Đánh giá
